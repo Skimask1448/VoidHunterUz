@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>void-hunter-ultimate.html</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#080b12;--surface:#121726;--surface2:#1a2033;--line:rgba(255,255,255,.08);--text:#eef4ff;--muted:#9aa3c2;
+--cyan:#2ed8ff;--pink:#ff4d88;--gold:#ffd166;--green:#55e39a;--purple:#b576ff;--orange:#ff9f43;--red:#ff6b6b;
+--font:'Orbitron',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at top,#10172c 0%,#080b12 60%,#05070b 100%);color:var(--text);font-family:var(--font)}
+body{display:flex;align-items:center;justify-content:center}
+canvas{display:block;border:1px solid rgba(46,216,255,.14);box-shadow:0 0 40px rgba(46,216,255,.08),0 0 100px rgba(0,0,0,.7)}
+button{font:inherit;cursor:pointer}
+#ui{position:fixed;inset:0 0 auto 0;z-index:20;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px;background:linear-gradient(180deg,rgba(6,8,12,.94),rgba(6,8,12,.56),transparent);pointer-events:none}
+.cluster{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.panel{pointer-events:auto;background:rgba(15,20,32,.82);border:1px solid var(--line);backdrop-filter:blur(10px);padding:10px 12px;border-radius:14px;min-width:86px}
+.label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.val{font-size:17px;color:var(--cyan);margin-top:3px}
+#waveText{color:var(--gold)}#creditText{color:var(--green)}#levelText{color:var(--purple)}#rerollText{color:var(--orange)}
+.barBg{margin-top:6px;height:10px;width:100%;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.bar{height:100%;border-radius:999px}#hpBar{background:linear-gradient(90deg,var(--pink),#ff7a59)}#xpBar{background:linear-gradient(90deg,var(--purple),var(--cyan))}
+.ctrl,.choiceBtn,.skinBtn{border:none;border-radius:14px;padding:13px 18px;letter-spacing:.13em;text-transform:uppercase;font-size:12px;transition:.18s transform,.18s opacity,.18s box-shadow,.18s background}.ctrl:hover,.choiceBtn:hover,.skinBtn:hover{transform:translateY(-2px)}
+.primary{background:var(--cyan);color:#041118;box-shadow:0 0 24px rgba(46,216,255,.22)}.ghost{background:rgba(255,255,255,.03);color:var(--text);border:1px solid var(--line)}.danger{background:rgba(255,107,107,.12);color:#ffd7d7;border:1px solid rgba(255,107,107,.28)}
+.overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(4,6,10,.88);backdrop-filter:blur(8px)}.hidden{display:none}
+.box{width:min(1040px,94vw);background:linear-gradient(180deg,rgba(18,23,37,.98),rgba(12,15,25,.98));border:1px solid rgba(46,216,255,.14);border-radius:24px;padding:26px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+.badge{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.05);font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}.hero{font-size:clamp(2rem,5vw,4rem);letter-spacing:.16em;color:var(--cyan);margin-top:12px;text-shadow:0 0 26px rgba(46,216,255,.28)}.sub{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.9;letter-spacing:.08em;max-width:78ch}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}.card{background:linear-gradient(180deg,rgba(24,30,47,.98),rgba(14,18,29,.98));border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;min-height:290px}
+.card h3{font-size:18px;line-height:1.35;color:var(--cyan)}.card p{font-size:12px;color:var(--muted);line-height:1.8}.card ul{list-style:none;display:flex;flex-direction:column;gap:8px}.card li{font-size:11px;color:var(--text)}.rarity{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.skinGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}.skin{background:linear-gradient(180deg,rgba(24,30,47,.98),rgba(14,18,29,.98));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}.preview{height:96px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}.skin h4{font-size:14px}.price{font-size:12px;color:var(--green)}
+.legend{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.legend div{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);padding:10px;border-radius:12px;font-size:11px;color:var(--muted);line-height:1.7}
+#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:80;background:rgba(12,16,26,.96);border:1px solid rgba(46,216,255,.16);border-radius:12px;padding:12px 16px;font-size:12px;letter-spacing:.08em;opacity:0;pointer-events:none;transition:.25s}
+@media (max-width:980px){.cards{grid-template-columns:1fr}.skinGrid{grid-template-columns:1fr 1fr}.legend{grid-template-columns:1fr 1fr}.card{min-height:auto}}
+@media (max-width:620px){.skinGrid,.legend{grid-template-columns:1fr}.box{padding:12px}.hero{font-size:1.6rem}.sub{font-size:10px}}
+
+@media (max-width:700px){
+  #ui{flex-direction:row;flex-wrap:wrap;gap:4px;padding:5px 6px;align-items:center}
+  .cluster{gap:4px;flex-wrap:wrap}
+  .panel{padding:4px 7px;border-radius:10px;min-width:0}
+  .label{font-size:7px;letter-spacing:.1em}
+  .val{font-size:12px;margin-top:1px}
+  .barBg{height:7px;margin-top:4px}
+  #hullPanel,#xpPanel{min-width:120px}
+  #topHangar{padding:6px 10px;font-size:9px}
+}
+
+@media (max-width:700px){
+  /* Upgrade cards: horizontal swipe */
+  .cards{
+    display:flex;
+    flex-direction:row;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    gap:12px;
+    margin-top:10px;
+    padding-bottom:8px;
+    scrollbar-width:none;
+  }
+  .cards::-webkit-scrollbar{display:none}
+  .card{
+    flex:0 0 82vw;
+    min-width:82vw;
+    scroll-snap-align:center;
+    min-height:auto;
+    padding:14px;
+    gap:8px;
+    border-radius:16px;
+  }
+  .card h3{font-size:15px}
+  .card .badge{font-size:9px}
+  .card ul{font-size:12px;gap:4px}
+  .card .ctrl{padding:10px;font-size:11px}
+  /* Upgrade overlay box: compact */
+  #upgradeOverlay .box{
+    padding:12px 10px 10px;
+    max-height:100vh;
+    overflow:hidden;
+  }
+  #upgradeOverlay h2{font-size:18px;margin-top:6px;letter-spacing:.06em}
+  #upgradeOverlay .badge{font-size:9px}
+  /* Reroll button smaller */
+  #upgradeOverlay .row{margin-bottom:0}
+}
+
+.cardsNav{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:10px;
+}
+.cardNavBtn{
+  flex:0 0 36px;
+  width:36px;height:36px;
+  border-radius:50%;
+  border:1px solid rgba(46,216,255,.35);
+  background:rgba(46,216,255,.08);
+  color:rgba(46,216,255,.9);
+  font-size:22px;
+  line-height:1;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+  padding:0;
+}
+.cardNavBtn:hover{background:rgba(46,216,255,.2)}
+.cardsNav .cards{flex:1;min-width:0}
+/* dots */
+.swipeHint{
+  display:flex;
+  justify-content:center;
+  gap:6px;
+  margin-top:8px;
+  min-height:10px;
+}
+.dot{
+  width:7px;height:7px;
+  border-radius:50%;
+  background:rgba(46,216,255,.25);
+  transition:background .2s;
+}
+.dot.active{background:rgba(46,216,255,.9)}
+/* hide nav arrows on desktop wide (3 cards visible) */
+@media (min-width:900px){
+  .cardNavBtn{display:none}
+}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="cluster">
+    <div class="panel"><div class="label">Score</div><div class="val" id="scoreText">0</div></div>
+    <div class="panel"><div class="label">Wave</div><div class="val" id="waveText">1</div></div>
+    <div class="panel"><div class="label">Level</div><div class="val" id="levelText">1</div></div>
+    <div class="panel"><div class="label">Credits</div><div class="val" id="creditText">0</div></div>
+    <div class="panel"><div class="label">Rerolls</div><div class="val" id="rerollText">1</div></div>
+  </div>
+  <div class="cluster">
+    <div class="panel" style="min-width:220px"><div class="label">Hull</div><div class="barBg"><div class="bar" id="hpBar" style="width:100%"></div></div></div>
+    <div class="panel" style="min-width:220px"><div class="label">XP</div><div class="barBg"><div class="bar" id="xpBar" style="width:0%"></div></div></div>
+    <button id="topHangar" class="ctrl ghost panel" type="button">Ангар</button>
+  </div>
+</div>
+<canvas id="game"></canvas>
+
+<div id="menuOverlay" class="overlay">
+  <div class="box">
+    <h1 class="hero">VOID HUNTER</h1>
+<div style="font-size:9px;letter-spacing:.18em;color:rgba(46,216,255,.35);margin-top:2px">v1.0</div>
+    <div class="row" style="margin-top:22px;justify-content:flex-start">
+      <button id="menuStart" class="ctrl primary" type="button">Начать забег</button>
+      <button id="menuHangar" class="ctrl ghost" type="button">Открыть ангар</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="upgradeOverlay" class="overlay hidden">
+  <div class="box">
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <div class="badge">Повышение уровня</div>
+        <h2 style="font-size:30px;letter-spacing:.12em;margin-top:12px;color:var(--purple)">Выбери одно улучшение</h2>
+        <div class="sub">Теперь в пуле 40+ карточек: урон, выживание, мобильность, контроль поля, экономика и легендарные апгрейды.</div>
+      </div>
+      <button id="rerollBtn" class="ctrl ghost" type="button">Реролл</button>
+    </div>
+    <div id="upgradeCards" class="cards"></div>
+  </div>
+</div>
+
+<div id="hangarOverlay" class="overlay hidden">
+  <div class="box">
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <div class="badge">Ангар</div>
+        <h2 style="font-size:30px;letter-spacing:.12em;margin-top:10px">Скины корабля</h2>
+        <div class="sub">Скины покупаются за кредиты и остаются между забегами в рамках текущего файла. Они косметические и не ломают боевой баланс.</div>
+      </div>
+      <button id="hangarClose" class="ctrl ghost" type="button">Закрыть</button>
+    </div>
+    <div class="sub" style="margin-top:12px">Доступно кредитов: <span id="hangarCredits" style="color:var(--green)">0</span></div>
+    <div id="skinGrid" class="skinGrid"></div>
+  </div>
+</div>
+
+<div id="pauseOverlay" class="overlay hidden">
+  <div class="box" style="max-width:520px;text-align:center">
+    <div class="badge">Пауза</div>
+    <h2 style="font-size:34px;letter-spacing:.12em;margin-top:12px">RUN PAUSED</h2>
+    <div class="sub" style="margin-inline:auto">Esc — продолжить. Можно открыть ангар и вернуться в бой.</div>
+    <div class="row" style="justify-content:center;margin-top:18px">
+      <button id="pauseResume" class="ctrl primary" type="button">Продолжить</button>
+      <button id="pauseHangar" class="ctrl ghost" type="button">Ангар</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const els={
+canvas:document.getElementById('game'),scoreText:document.getElementById('scoreText'),waveText:document.getElementById('waveText'),levelText:document.getElementById('levelText'),creditText:document.getElementById('creditText'),rerollText:document.getElementById('rerollText'),hpBar:document.getElementById('hpBar'),xpBar:document.getElementById('xpBar'),toast:document.getElementById('toast'),menuOverlay:document.getElementById('menuOverlay'),upgradeOverlay:document.getElementById('upgradeOverlay'),hangarOverlay:document.getElementById('hangarOverlay'),pauseOverlay:document.getElementById('pauseOverlay'),upgradeCards:document.getElementById('upgradeCards'),skinGrid:document.getElementById('skinGrid'),hangarCredits:document.getElementById('hangarCredits'),menuStart:document.getElementById('menuStart'),menuHangar:document.getElementById('menuHangar'),topHangar:document.getElementById('topHangar'),hangarClose:document.getElementById('hangarClose'),pauseResume:document.getElementById('pauseResume'),pauseHangar:document.getElementById('pauseHangar'),rerollBtn:document.getElementById('rerollBtn')};
+const x=els.canvas.getContext('2d');
+function resize(){els.canvas.width=innerWidth;els.canvas.height=innerHeight;window.gsf=Math.min(innerWidth/1000,innerHeight/740,1);}resize();addEventListener('resize',resize);
+
+const skins=[
+{id:'classic',name:'Classic Azure',price:0,owned:true,colors:{body:'#c8e8ff',core:'#2ed8ff',trail:'#2ed8ff',flame:'#6cc8ff'}},
+{id:'ember',name:'Ember Fang',price:120,owned:false,colors:{body:'#ffe0d4',core:'#ff7a59',trail:'#ff9f43',flame:'#ff5e57'}},
+{id:'toxic',name:'Toxic Surge',price:180,owned:false,colors:{body:'#d9ffe7',core:'#55e39a',trail:'#8dffbd',flame:'#2fce7b'}},
+{id:'void',name:'Void Pulse',price:260,owned:false,colors:{body:'#eadcff',core:'#b576ff',trail:'#d1a8ff',flame:'#8657ff'}},
+{id:'royal',name:'Royal Neon',price:420,owned:false,colors:{body:'#fff0c9',core:'#ffd166',trail:'#ffe28b',flame:'#ffb703'}},
+{id:'blood',name:'Blood Comet',price:520,owned:false,colors:{body:'#ffd6de',core:'#ff4d88',trail:'#ff8cb4',flame:'#ff6b6b'}}
+];
+
+const meta={bankCredits:0,selectedSkin:'classic'};
+const game={state:'menu',score:0,wave:1,frame:0,level:1,xp:0,xpToNext:28,runCredits:0,rerolls:1,keys:{},stars:[],bullets:[],enemyBullets:[],enemies:[],gems:[],particles:[],player:null,spawnCooldown:50,lastCards:[]};
+
+function rand(a,b){return Math.random()*(b-a)+a}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function dist(ax,ay,bx,by){return Math.hypot(ax-bx,ay-by)}
+function showToast(msg){els.toast.textContent=msg;els.toast.style.opacity=1;clearTimeout(showToast.t);showToast.t=setTimeout(()=>els.toast.style.opacity=0,1600)}
+function xpNeeded(lv){return Math.floor(28+(lv-1)*12+(lv-1)*(lv-1)*2.2)}
+function weightedPick(pool){const total=pool.reduce((s,p)=>s+p.w,0);let r=Math.random()*total;for(const p of pool){r-=p.w;if(r<=0)return p.item}return pool[pool.length-1].item}
+function getSkin(){return skins.find(s=>s.id===meta.selectedSkin)?.colors||skins[0].colors}
+function hasTag(tag){return game.player.tags.has(tag)}
+
+function initStars(){game.stars=[];for(let i=0;i<160;i++)game.stars.push({x:Math.random()*els.canvas.width,y:Math.random()*els.canvas.height,r:Math.random()*1.5+.3,s:Math.random()*.55+.12,a:Math.random()*.7+.15})}
+
+function resetRun(){
+game.score=0;game.wave=1;game.frame=0;game.level=1;game.xp=0;game.xpToNext=28;game.runCredits=0;game.rerolls=1;game.bullets=[];game.enemyBullets=[];game.enemies=[];game.gems=[];game.particles=[];game.spawnCooldown=40;game.lastCards=[];initStars();
+game.player={x:els.canvas.width/2,y:els.canvas.height-92,trail:[],moveSpeed:4.7,shootRate:12,shotCd:0,damage:1,pierce:0,extraShots:0,maxHp:100,hp:100,pickupRange:56,regenLevel:0,regenTimer:0,critChance:0,critDamage:1.8,maxShield:0,shield:0,shieldCd:0,creditGain:1,xpGain:1,inv:0,tags:new Set(),armor:0,dodge:0,bulletSpeed:9.6,bulletSize:4,ricochet:0,explode:0,freeze:0,poison:0,poisonDmg:0,lifesteal:0,aura:0,drone:0,droneCd:0,mineChance:0,reaper:false,trailFire:false,dashCd:0,recoveryPulse:false,slowAura:0,orbital:0,orbitalAngle:0,doubleWaveCredits:0,bossBounty:1,revive:0,chain:0,magnetBurst:false,timeSlow:false,glassCannon:false,berserk:false,fortune:false,phase:false};
+updateUI();
+}
+
+function updateUI(){const p=game.player||{hp:100,maxHp:100};els.scoreText.textContent=Math.floor(game.score);els.waveText.textContent=game.wave;els.levelText.textContent=game.level;els.creditText.textContent=Math.floor(meta.bankCredits+game.runCredits);els.rerollText.textContent=game.rerolls;els.hangarCredits.textContent=Math.floor(meta.bankCredits);els.hpBar.style.width=(p.hp/p.maxHp*100)+'%';els.xpBar.style.width=(game.xp/game.xpToNext*100)+'%'}
+function openMenu(){game.state='menu';els.menuOverlay.classList.remove('hidden');els.upgradeOverlay.classList.add('hidden');els.pauseOverlay.classList.add('hidden')}
+function startRun(){resetRun();game.state='playing';els.menuOverlay.classList.add('hidden');els.pauseOverlay.classList.add('hidden');els.upgradeOverlay.classList.add('hidden');showToast('Забег начался')}
+function openHangar(){renderSkins();els.hangarOverlay.classList.remove('hidden')}function closeHangar(){els.hangarOverlay.classList.add('hidden')}
+function pauseGame(){if(game.state==='playing'){game.state='paused';els.pauseOverlay.classList.remove('hidden')}}function resumeGame(){if(game.state==='paused'){game.state='playing';els.pauseOverlay.classList.add('hidden')}}
+function endRun(){
+  meta.bankCredits+=Math.floor(game.runCredits);
+  // Send score to Telegram chat
+  try{
+    if(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.sendData){
+      const tg=window.Telegram.WebApp;
+      const name=(tg.initDataUnsafe&&tg.initDataUnsafe.user)
+        ?(tg.initDataUnsafe.user.first_name||tg.initDataUnsafe.user.username||'Игрок')
+        :'Игрок';
+      tg.sendData(JSON.stringify({score:Math.floor(game.score),wave:game.wave,name:name}));
+    }
+  }catch(e){}
+  openMenu();
+  showToast('Забег завершён · кредитов: '+Math.floor(game.runCredits));
+  document.querySelector('.hero').textContent='RUN TERMINATED';
+  document.querySelector('.sub').innerHTML='Счёт: '+Math.floor(game.score)+' · Волна: '+game.wave+' · Кредиты: '+Math.floor(game.runCredits)+'<br>Можно начать заново или зайти в ангар.';
+  updateUI();
+}
+
+const U=[
+['damage','Overcharged Rounds','Common','Больше урона за выстрел.',['+0.35 урона','Базовый DPS','Хороший ранний пик'],p=>12+(p.damage<2?5:0),p=>p.damage+=0.35],
+['firerate','Pulse Accelerator','Common','Стрельба чаще.',['-1.5 к интервалу','Лучший sustain DPS','Силен с мультишотом'],p=>12+(p.shootRate>7?6:0),p=>p.shootRate=Math.max(5,p.shootRate-1.5)],
+['maxhp','Reinforced Hull','Common','Больше HP и лечение.',['+20 max HP','Лечит на 18','Надёжная защита'],p=>10+(p.hp/p.maxHp<0.6?8:0),p=>{p.maxHp+=20;p.hp=Math.min(p.maxHp,p.hp+18)}],
+['speed','Vector Thrusters','Common','Больше скорости движения.',['+0.45 speed','Проще уворачиваться','Стабильная ценность'],p=>10+(p.moveSpeed<6.2?5:0),p=>p.moveSpeed+=0.45],
+['magnet','Grav-Magnet','Rare','XP кристаллы сильнее притягиваются.',['+32 pickup range','Комфортный mid-game','Быстрее уровни'],p=>7+(p.pickupRange<110?8:0),p=>p.pickupRange+=32],
+['multishot','Twin Splitter','Rare','Дополнительный выстрел.',['+1 снаряд','Шире покрытие','Лимит до 4'],p=>5+(p.extraShots<2?8:0),p=>p.extraShots=Math.min(4,p.extraShots+1)],
+['pierce','Phase Lance','Rare','Пули пробивают врагов.',['+1 пробитие','Сильно против волн','Умеренно против босса'],p=>6+(p.pierce<2?5:0),p=>p.pierce=Math.min(6,p.pierce+1)],
+['regen','Nano Repair','Rare','Пассивное лечение.',['+1 regen level','Лечит между ошибками','Долгая ценность'],p=>5+(p.regenLevel<2?7:0),p=>p.regenLevel+=1],
+['xpboost','Archive Uplink','Rare','Больше XP с кристаллов.',['+18% XP','Ускоряет прокачку','Ослаблен против snowball'],p=>6+(game.level<6?7:0),p=>p.xpGain*=1.18],
+['crit','Lucky Circuit','Epic','Шанс критического урона.',['+6% crit chance','Крит = x1.8','Редкий spike'],p=>3+(p.critChance<0.18?6:0),p=>p.critChance=Math.min(.35,p.critChance+.06)],
+['shield','Ion Buffer','Epic','Щит, который перезаряжается.',['+1 щит','Восстановление со временем','Сильный защитный пик'],p=>3+(p.maxShield<1?8:0),p=>p.maxShield=Math.min(3,p.maxShield+1)],
+['credit','Broker Protocol','Epic','Больше кредитов за убийства.',['+25% кредитов','Мета-прогресс','Не усиливает бой'],p=>4+(meta.bankCredits<300?5:0),p=>p.creditGain*=1.25],
+['armor','Reactive Plating','Common','Снижает входящий урон.',['+1 armor','Не даёт ваншотов','Особенно силён против шутеров'],p=>8+(p.armor<3?4:0),p=>p.armor+=1],
+['dodge','Ghost Servo','Rare','Шанс уклониться от удара.',['+5% dodge','Хороший late-game слой','Лимит 25%'],p=>5+(p.dodge<.15?4:0),p=>p.dodge=Math.min(.25,p.dodge+.05)],
+['bulletspeed','Rail Barrel','Common','Пули летят быстрее.',['+1.2 bullet speed','Лучше по дальним целям','Комфорт'],p=>7+(p.bulletSpeed<12?4:0),p=>p.bulletSpeed+=1.2],
+['size','Heavy Shells','Common','Пули больше.',['+0.6 размер пули','Проще попадать','Чуть лучше клир'],p=>6+(p.bulletSize<6?4:0),p=>p.bulletSize+=.6],
+['ricochet','Mirror Core','Rare','Пули отскакивают в соседнюю цель.',['+1 ricochet','Любит плотные пачки','Лимит 3'],p=>4+(p.ricochet<1?7:0),p=>p.ricochet=Math.min(3,p.ricochet+1)],
+['explode','Volatile Rounds','Rare','Убитые враги взрываются.',['+1 splash tier','Лучше против толпы','Красивый chain clear'],p=>4+(p.explode<1?6:0),p=>p.explode+=1],
+['freeze','Cryo Tips','Rare','Пули могут замораживать.',['+8% freeze chance','Контроль поля','Слабее против босса'],p=>5+(p.freeze<.16?5:0),p=>p.freeze+=.08],
+['poison','Venom Packet','Rare','Яд на попадании.',['+яд на 2 сек','DOT урон','Хорошо по толстым'],p=>5+(p.poison<1?6:0),p=>{p.poison=1;p.poisonDmg+=.18}],
+['lifesteal','Blood Sync','Epic','Лечение от нанесённого урона.',['+3% lifesteal','Стабильная sustain-механика','Лимит 12%'],p=>3+(p.lifesteal<.06?6:0),p=>p.lifesteal=Math.min(.12,p.lifesteal+.03)],
+['aura','Shock Nova','Rare','Пульс урона вокруг корабля.',['+1 aura tier','Освобождает пространство','Против мили волн'],p=>5+(p.aura<1?7:0),p=>p.aura+=1],
+['drone','Support Drone','Rare','Дрон стреляет рядом с тобой.',['+1 drone','Авто-помощник','Лимит 2'],p=>4+(p.drone<1?7:0),p=>p.drone=Math.min(2,p.drone+1)],
+['mine','Mine Layer','Rare','Иногда оставляешь мину.',['+10% chance','Оборона хвоста','Силен при kite'],p=>4+(p.mineChance<.2?5:0),p=>p.mineChance+=.1],
+['trail','Thermal Wake','Epic','После движения остаётся огненный след.',['Огненный след','Карта становится оружием','Нужен movement'],p=>3+(!p.trailFire?8:0),p=>{p.trailFire=true;p.tags.add('trail')}],
+['pulse','Emergency Pulse','Epic','При низком HP даёт импульс и чистит рядом.',['Автозащита на low HP','Спасает run','Редкий safety net'],p=>3+(!p.recoveryPulse?7:0),p=>{p.recoveryPulse=true;p.tags.add('pulse')}],
+['slowaura','Gravity Field','Rare','Враги рядом замедляются.',['Замедление рядом','Легче выйти из зажима','Сильный utility'],p=>5+(p.slowAura<.12?5:0),p=>p.slowAura+=.12],
+['orbital','Orbital Blades','Epic','Вращающиеся лезвия вокруг корабля.',['+1 orbit tier','Контроль ближней зоны','Легендарные синергии'],p=>3+(p.orbital<1?8:0),p=>p.orbital+=1],
+['wavecredit','Claim Bounty','Common','Больше кредитов за волну.',['+4 кред. за волну','Экономика run','Хорош для фарма'],p=>7,p=>p.doubleWaveCredits+=4],
+['bossbounty','Boss Contract','Epic','Боссы дают больше наград.',['+35% наград с босса','Фарм поздних волн','Редкий economy pick'],p=>3+(p.bossBounty<1.5?5:0),p=>p.bossBounty*=1.35],
+['revive','Phoenix Protocol','Legendary','Одно воскрешение за забег.',['+1 revive','Легендарная страховка','Очень редкий пик'],p=>1+(p.revive<1?6:0),p=>p.revive+=1],
+['chain','Chain Reactor','Epic','Пули бьют соседние цели молнией.',['+1 chain level','Сильный screen clear','Синергия с crit'],p=>3+(p.chain<1?7:0),p=>p.chain+=1],
+['magnetburst','Hyper Magnet','Epic','Каждый новый уровень тянет весь XP рядом.',['Burst-подбор XP','Комфорт snowball','Редкий utility'],p=>3+(!p.magnetBurst?7:0),p=>{p.magnetBurst=true;p.tags.add('magnetBurst')}],
+['timeslow','Time Dilation','Legendary','Иногда время вокруг тебя замедляется.',['Пули и враги медленнее','Мощный контроль','Очень редкий'],p=>1+(!p.timeSlow?6:0),p=>{p.timeSlow=true;p.tags.add('timeslow')}],
+['glass','Glass Cannon','Legendary','Больше урона ценой живучести.',['+65% урона','-25 max HP','Риск-награда'],p=>1+(!p.glassCannon?7:0),p=>{p.damage*=1.65;p.maxHp=Math.max(40,p.maxHp-25);p.hp=Math.min(p.hp,p.maxHp);p.glassCannon=true}],
+['berserk','Berserk Core','Legendary','Чем меньше HP, тем больше урон.',['Low HP = high DPS','Сильная build-card','Опасный стиль'],p=>1+(!p.berserk?6:0),p=>{p.berserk=true;p.tags.add('berserk')}],
+['fortune','Fortune Engine','Epic','Кредиты иногда удваиваются.',['Шанс x2 credits','Фарм build','Не усиливает бой'],p=>3+(!p.fortune?6:0),p=>{p.fortune=true;p.tags.add('fortune')}],
+['phase','Phase Step','Epic','Рывок сквозь врагов по Shift.',['Dash + phasing','Активный skill card','Повышает skill cap'],p=>3+(!p.phase?7:0),p=>{p.phase=true;p.tags.add('phase')}],
+['critdmg','Killer Instinct','Rare','Криты бьют сильнее.',['+0.25 crit mult','Растёт с crit chance','Сильный synergy pick'],p=>5+(p.critChance>.08?6:0),p=>p.critDamage+=.25],
+['healgem','Vital Crystals','Common','XP кристаллы чуть лечат.',['+1 HP при подборе','Хорошо для kite','Мягкая sustain'],p=>6,p=>p.tags.add('healgems')],
+['headhunt','Hunter Sight','Rare','Приоритет по самым толстым врагам.',['Лучше по элите и боссам','Умный автофокус','Стабильный utility'],p=>5+(!p.tags.has('headhunt')?4:0),p=>p.tags.add('headhunt')],
+['overclock','Overclock Frame','Epic','Все твои базовые статы чуть выше.',['+8% к скорости/урону/XP','Ровный power up','Универсальный пик'],p=>3,p=>{p.moveSpeed*=1.08;p.damage*=1.08;p.xpGain*=1.08}],
+['economy','Salvage Protocol','Common','Убитые враги чаще роняют бонусный кристалл.',['+шанс bonus gem','Ускоряет уровни','Экономический комфорт'],p=>6,p=>p.tags.add('salvage')]
+].map(([id,name,rarity,desc,lines,weight,apply])=>({id,name,rarity,desc,lines,weight,apply}));
+
+function buildUpgradeCards(forceNew=false){
+els.upgradeCards.innerHTML='';const picked=[];const used=new Set();while(picked.length<3){const pool=U.filter(u=>!used.has(u.id)&&(!game.lastCards.includes(u.id)||forceNew)).map(u=>({item:u,w:u.weight(game.player)})).filter(v=>v.w>0);const card=weightedPick(pool.length?pool:U.filter(u=>!used.has(u.id)).map(u=>({item:u,w:u.weight(game.player)})));picked.push(card);used.add(card.id)}game.lastCards=picked.map(p=>p.id);for(const card of picked){const div=document.createElement('div');div.className='card';div.innerHTML=`<div><div class="rarity">${card.rarity}</div><h3>${card.name}</h3><p>${card.desc}</p><ul>${card.lines.map(v=>`<li>• ${v}</li>`).join('')}</ul></div>`;const btn=document.createElement('button');btn.className='choiceBtn primary';btn.type='button';btn.textContent='Выбрать';btn.addEventListener('click',()=>{card.apply(game.player);if(game.player.maxShield&&game.player.shield<1)game.player.shield=1;els.upgradeOverlay.classList.add('hidden');game.state='playing';updateUI();showToast(card.name)});div.appendChild(btn);els.upgradeCards.appendChild(div)}}
+function openUpgrade(){game.state='upgrade';els.upgradeOverlay.classList.remove('hidden');buildUpgradeCards(false)}
+
+function renderSkins(){els.skinGrid.innerHTML='';els.hangarCredits.textContent=Math.floor(meta.bankCredits);for(const s of skins){const active=meta.selectedSkin===s.id,canBuy=meta.bankCredits>=s.price;const div=document.createElement('div');div.className='skin';div.innerHTML=`<div class="preview"><svg width="86" height="86" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><g filter="url(#g${s.id})"><path d="M40 12L24 54L34 47L40 52L46 47L56 54L40 12Z" fill="${s.colors.body}"/><path d="M40 20L34 47H46L40 20Z" fill="${s.colors.core}"/><path d="M34 52H46L40 68L34 52Z" fill="${s.colors.flame}" opacity="0.9"/></g><defs><filter id="g${s.id}"><feGaussianBlur stdDeviation="1.1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs></svg></div><div class="badge">${s.owned?'Owned':'Store'}</div><h4>${s.name}</h4><div class="price">${s.price===0?'Free':s.price+' credits'}</div><div class="sub" style="font-size:11px;line-height:1.7;margin-top:0">Косметический скин без боевых бонусов.</div>`;const btn=document.createElement('button');btn.className='skinBtn '+(active?'primary':'ghost');btn.type='button';if(s.owned){btn.textContent=active?'Выбран':'Выбрать';btn.addEventListener('click',()=>{meta.selectedSkin=s.id;renderSkins();showToast('Скин применён')})}else{btn.textContent=canBuy?'Купить':'Недостаточно кредитов';btn.disabled=!canBuy;btn.style.opacity=canBuy?'1':'.55';btn.addEventListener('click',()=>{meta.bankCredits-=s.price;s.owned=true;meta.selectedSkin=s.id;renderSkins();updateUI();showToast('Куплен '+s.name)})}div.appendChild(btn);els.skinGrid.appendChild(div)}}
+
+function gainXp(amount){game.xp+=amount;if(game.player.tags.has('healgems'))game.player.hp=Math.min(game.player.maxHp,game.player.hp+1);while(game.xp>=game.xpToNext){game.xp-=game.xpToNext;game.level++;game.xpToNext=xpNeeded(game.level);if(game.player.magnetBurst){for(const g of game.gems)g.vx+=(game.player.x-g.x)*0.05,g.vy+=(game.player.y-g.y)*0.05}openUpgrade()}updateUI()}
+function spawnEnemy(){const side=Math.floor(Math.random()*3);let ex=rand(30,els.canvas.width-30),ey=-40;if(side===1){ex=-30;ey=rand(20,els.canvas.height*.45)}if(side===2){ex=els.canvas.width+30;ey=rand(20,els.canvas.height*.45)}const roll=Math.random();let type='basic';if(game.wave>=2&&roll>.58)type='fast';if(game.wave>=3&&roll>.77)type='shooter';if(game.wave>=4&&roll>.90)type='tank';const t={basic:{r:14,hp:2+game.wave*.24,spd:1.15+game.wave*.03,col:'#ff7a59',score:8,credit:2,xp:6,shoot:0},fast:{r:11,hp:1.6+game.wave*.18,spd:1.95+game.wave*.05,col:'#ff4d88',score:12,credit:3,xp:7,shoot:0},shooter:{r:13,hp:3.2+game.wave*.25,spd:1+game.wave*.02,col:'#ffb347',score:15,credit:4,xp:8,shoot:110-Math.min(45,game.wave*3)},tank:{r:18,hp:7+game.wave*.65,spd:.72+game.wave*.015,col:'#b576ff',score:24,credit:6,xp:12,shoot:0}}[type];game.enemies.push({x:ex,y:ey,vx:rand(-.6,.6),vy:t.spd,hp:t.hp,maxHp:t.hp,r:t.r,type,col:t.col,score:t.score,credit:t.credit,xp:t.xp,shootCd:t.shoot?rand(0,t.shoot):0,shootRate:t.shoot,frozen:0,poison:0,poisonTimer:0})}
+function spawnBoss(){game.enemies.push({x:els.canvas.width/2,y:-60,vx:1.3,vy:.5,r:36,type:'boss',col:'#ff2f68',hp:42+game.wave*8,maxHp:42+game.wave*8,score:140+game.wave*25,credit:(22+game.wave*3)*game.player.bossBounty,xp:40+game.wave*3,shootCd:30,shootRate:34,frozen:0,poison:0,poisonTimer:0});showToast('Боссовая волна')}
+function killEnemy(e){game.score+=Math.floor(e.score);let gained=e.credit*game.player.creditGain;if(game.player.fortune&&Math.random()<.15)gained*=2;game.runCredits+=gained;for(let i=0;i<(e.type==='boss'?10:4);i++)game.particles.push({x:e.x,y:e.y,vx:rand(-3,3),vy:rand(-3,3),life:1,col:e.col,r:rand(1.8,4.2)});const gc=e.type==='boss'?5:1+(Math.random()<0.28?1:0)+(game.player.tags.has('salvage')&&Math.random()<.16?1:0);for(let i=0;i<gc;i++)game.gems.push({x:e.x+rand(-8,8),y:e.y+rand(-8,8),vx:rand(-1.2,1.2),vy:rand(-1.2,1.2),val:(e.xp/gc)*game.player.xpGain,r:6,col:e.type==='boss'?'#ffd166':'#7f8cff'});if(game.player.explode){for(const enemy of game.enemies){if(enemy!==e&&dist(enemy.x,enemy.y,e.x,e.y)<70+game.player.explode*18){enemy.hp-=0.7*game.player.explode}}}updateUI()}
+
+function shoot(){if(game.enemies.length===0)return;let targets=[...game.enemies];if(game.player.tags.has('headhunt'))targets.sort((a,b)=>b.maxHp-a.maxHp);let target=targets[0],best=1e9;for(const e of targets){const d=dist(game.player.x,game.player.y,e.x,e.y);if(d<best){best=d;target=e}}const base=Math.atan2(target.y-game.player.y,target.x-game.player.x);const count=1+game.player.extraShots;const spread=count===1?0:.25;let bonus=1;if(game.player.berserk){bonus+=Math.max(0,(1-game.player.hp/game.player.maxHp))*1.1}for(let i=0;i<count;i++){const off=(i-(count-1)/2)*spread;const ang=base+off;const crit=Math.random()<game.player.critChance?game.player.critDamage:1;game.bullets.push({x:game.player.x,y:game.player.y,vx:Math.cos(ang)*game.player.bulletSpeed,vy:Math.sin(ang)*game.player.bulletSpeed,r:game.player.bulletSize,pierce:game.player.pierce,col:'#2ed8ff',dmg:game.player.damage*crit*bonus,ricochet:game.player.ricochet,chain:game.player.chain})}}
+function droneShoot(){if(game.player.drone<1||game.enemies.length===0)return;game.player.droneCd--;if(game.player.droneCd>0)return;game.player.droneCd=55-Math.min(20,game.player.drone*8);const offset=game.frame/18;for(let d=0;d<game.player.drone;d++){const dx=Math.cos(offset+d*Math.PI)*28,dy=Math.sin(offset+d*Math.PI)*18;let t=game.enemies[0],best=1e9;for(const e of game.enemies){const di=dist(game.player.x+dx,game.player.y+dy,e.x,e.y);if(di<best){best=di;t=e}}const ang=Math.atan2(t.y-(game.player.y+dy),t.x-(game.player.x+dx));game.bullets.push({x:game.player.x+dx,y:game.player.y+dy,vx:Math.cos(ang)*(game.player.bulletSpeed-1.4),vy:Math.sin(ang)*(game.player.bulletSpeed-1.4),r:3.2,pierce:0,col:'#55e39a',dmg:game.player.damage*.55,ricochet:0,chain:0})}}
+function maybeMine(){if(game.player.mineChance>0&&Math.random()<game.player.mineChance*.02){game.particles.push({mine:true,x:game.player.x,y:game.player.y,life:200,col:'#ff9f43',r:7})}}
+function takeHit(base){if(game.player.inv>0)return;const dodged=Math.random()<game.player.dodge;if(dodged){showToast('Уклонение');game.player.inv=20;return}if(game.player.shield>0){game.player.shield--;game.player.shieldCd=0;game.player.inv=28;showToast('Щит поглотил удар');return}let dmg=Math.max(1,base-game.player.armor);game.player.hp-=dmg;game.player.inv=52;for(let i=0;i<10;i++)game.particles.push({x:game.player.x,y:game.player.y,vx:rand(-2.4,2.4),vy:rand(-2.4,2.4),life:1,col:'#ff4d88',r:rand(1.6,3.8)});if(game.player.recoveryPulse&&game.player.hp<game.player.maxHp*.25){for(const e of game.enemies){if(dist(e.x,e.y,game.player.x,game.player.y)<120)e.hp-=8}showToast('Emergency Pulse')}if(game.player.hp<=0){if(game.player.revive>0){game.player.revive--;game.player.hp=game.player.maxHp*.5;game.player.inv=120;showToast('Phoenix Protocol');}else{game.player.hp=0;updateUI();endRun()}}else updateUI()}
+
+addEventListener('keydown',e=>{game.keys[e.key.toLowerCase()]=true;if(e.key==='Escape'){if(game.state==='playing')pauseGame();else if(game.state==='paused')resumeGame()}});addEventListener('keyup',e=>game.keys[e.key.toLowerCase()]=false);
+
+function update(){if(game.state!=='playing')return;game.frame++;for(const s of game.stars){s.y+=s.s*(window._dt||1);if(s.y>els.canvas.height){s.y=0;s.x=Math.random()*els.canvas.width}}const p=game.player;const _jx=window._jx?window._jx():0,_jy=window._jy?window._jy():0;const dx=Math.abs(_jx)>0.05?_jx:((game.keys['d']||game.keys['arrowright'])?1:0)-((game.keys['a']||game.keys['arrowleft'])?1:0);const dy=Math.abs(_jy)>0.05?_jy:((game.keys['s']||game.keys['arrowdown'])?1:0)-((game.keys['w']||game.keys['arrowup'])?1:0);const len=Math.hypot(dx,dy)||1;let mult=1;if(p.timeSlow&&Math.sin(game.frame/90)>0.92)mult=.7;const _s=(window.gsf||1)*(window._dt||1);p.x=clamp(p.x+dx/len*p.moveSpeed*_s,20,els.canvas.width-20);p.y=clamp(p.y+dy/len*p.moveSpeed*_s,24,els.canvas.height-24);p.trail.push({x:p.x,y:p.y});if(p.trail.length>14)p.trail.shift();if(p.inv>0)p.inv-=(window._dt||1);p.regenTimer++;if(p.regenLevel>0&&p.regenTimer>300-p.regenLevel*35){p.regenTimer=0;p.hp=Math.min(p.maxHp,p.hp+p.regenLevel*2.2)}if(p.maxShield>0){p.shieldCd++;if(p.shield<p.maxShield&&p.shieldCd>620){p.shield++;p.shieldCd=0;showToast('Щит восстановлен')}}if(p.phase&&game.keys['shift']&&p.dashCd<=0){const mx=dx||0,my=dy||-1;p.x=clamp(p.x+mx*90,20,els.canvas.width-20);p.y=clamp(p.y+my*90,24,els.canvas.height-24);p.inv=20;p.dashCd=150;showToast('Phase Step')}if(p.dashCd>0)p.dashCd-=(window._dt||1);p.shotCd-=(window._dt||1);if(p.shotCd<=0){shoot();p.shotCd=p.shootRate}droneShoot();maybeMine();game.spawnCooldown-=(window._dt||1);const spawnRate=Math.max(18,110/(1+(game.wave-1)*0.12));if(game.spawnCooldown<=0){spawnEnemy();game.spawnCooldown=spawnRate*(.65+Math.random()*.65)}if(game.frame%900===0){game.wave++;game.runCredits+=8+game.wave*2+p.doubleWaveCredits;if(game.wave%5===0)spawnBoss();showToast('Волна '+game.wave)}for(const b of game.bullets){b.x+=b.vx*(window._dt||1);b.y+=b.vy*(window._dt||1)}for(const b of game.enemyBullets){b.x+=b.vx*mult*(window._dt||1);b.y+=b.vy*mult*(window._dt||1)}for(const e of game.enemies){if(e.frozen>0)e.frozen--;if(e.poisonTimer>0){e.poisonTimer--;e.hp-=e.poison}let em=mult*(e.frozen>0?.45:1)*(window._dt||1);if(e.type==='boss'){if(e.y<90)e.y+=e.vy*em;e.x+=e.vx*em;if(e.x<50||e.x>els.canvas.width-50)e.vx*=-1}else{const ang=Math.atan2(p.y-e.y,p.x-e.x);const chase=e.type==='fast'?.06:(e.type==='tank'?.018:.028);e.vx+=Math.cos(ang)*chase;e.vy+=Math.sin(ang)*chase*.55;const ms=(e.type==='tank'?1.4:(e.type==='fast'?2.4:1.7))*(1-p.slowAura*.45);const sp=Math.hypot(e.vx,e.vy)||1;e.vx=e.vx/sp*ms;e.vy=e.vy/sp*ms;e.x+=e.vx*em;e.y+=e.vy*em}if(e.shootRate){e.shootCd--;if(e.shootCd<=0){e.shootCd=e.shootRate;const base=Math.atan2(p.y-e.y,p.x-e.x);const fan=e.type==='boss'?[-.45,-.22,0,.22,.45]:[0];for(const off of fan)game.enemyBullets.push({x:e.x,y:e.y,vx:Math.cos(base+off)*(e.type==='boss'?3.8:3.2),vy:Math.sin(base+off)*(e.type==='boss'?3.8:3.2),r:e.type==='boss'?5:4,col:e.type==='boss'?'#ff2f68':'#ffb347'})}}}for(const part of game.particles){if(part.mine){part.life--;for(const e of game.enemies){if(dist(part.x,part.y,e.x,e.y)<22+e.r){e.hp-=7;part.life=0;for(let i=0;i<8;i++)game.particles.push({x:part.x,y:part.y,vx:rand(-2.5,2.5),vy:rand(-2.5,2.5),life:1,col:'#ff9f43',r:rand(1.5,3.3)})}}}else{part.x+=part.vx;part.y+=part.vy;part.vx*=.95;part.vy*=.95;part.life-=.03}}game.particles=game.particles.filter(p=>p.life>0);for(const g of game.gems){g.x+=g.vx;g.y+=g.vy;g.vx*=.92;g.vy*=.92;const d=dist(g.x,g.y,p.x,p.y);if(d<p.pickupRange){const ang=Math.atan2(p.y-g.y,p.x-g.x);const force=1+(1-d/p.pickupRange)*2.4;g.vx+=Math.cos(ang)*force;g.vy+=Math.sin(ang)*force}if(d<16){g.dead=true;gainXp(g.val)}}game.gems=game.gems.filter(g=>!g.dead);for(const b of game.bullets){for(const e of game.enemies){if(dist(b.x,b.y,e.x,e.y)<e.r+b.r){e.hp-=b.dmg;if(p.lifesteal>0)p.hp=Math.min(p.maxHp,p.hp+b.dmg*p.lifesteal*.08);if(p.freeze>0&&Math.random()<p.freeze)e.frozen=80;if(p.poison>0){e.poison=p.poisonDmg;e.poisonTimer=120}if(b.chain>0){for(const e2 of game.enemies){if(e2!==e&&dist(e.x,e.y,e2.x,e2.y)<80){e2.hp-=b.dmg*.35*b.chain;break}}}if(b.ricochet>0){let nxt=null,nd=1e9;for(const e2 of game.enemies){if(e2!==e){const d=dist(e.x,e.y,e2.x,e2.y);if(d<nd&&d<140){nd=d;nxt=e2}}}if(nxt){const ang=Math.atan2(nxt.y-b.y,nxt.x-b.x);b.vx=Math.cos(ang)*p.bulletSpeed;b.vy=Math.sin(ang)*p.bulletSpeed;b.ricochet--;continue}}b.pierce--;for(let i=0;i<3;i++)game.particles.push({x:b.x,y:b.y,vx:rand(-1.2,1.2),vy:rand(-1.2,1.2),life:.5,col:e.col,r:rand(1,2.2)});if(e.hp<=0)killEnemy(e);if(b.pierce<0){b.dead=true;break}}}}for(let i=0;i<p.orbital;i++){const ang=game.frame/28+i*(Math.PI*2/p.orbital);const ox=p.x+Math.cos(ang)*(28+6*p.orbital),oy=p.y+Math.sin(ang)*(28+6*p.orbital);for(const e of game.enemies){if(dist(ox,oy,e.x,e.y)<e.r+8)e.hp-=.6}}for(const e of game.enemies){if(dist(e.x,e.y,p.x,p.y)<e.r+12){if(p.inv<=0)takeHit(e.type==='boss'?24:(e.type==='tank'?18:12));}}for(const b of game.enemyBullets){if(dist(b.x,b.y,p.x,p.y)<b.r+10){b.dead=true;takeHit(b.r>=5?16:10)}}if(p.aura>0&&game.frame%(36-Math.min(18,p.aura*4))===0){for(const e of game.enemies){if(dist(e.x,e.y,p.x,p.y)<85+p.aura*18)e.hp-=1.2*p.aura}game.particles.push({x:p.x,y:p.y,vx:0,vy:0,life:.45,col:'#2ed8ff',r:14+p.aura*3})}game.enemies=game.enemies.filter(e=>e.hp>0&&e.x>-120&&e.x<els.canvas.width+120&&e.y>-120&&e.y<els.canvas.height+140);game.bullets=game.bullets.filter(b=>!b.dead&&b.x>-30&&b.x<els.canvas.width+30&&b.y>-30&&b.y<els.canvas.height+30);game.enemyBullets=game.enemyBullets.filter(b=>!b.dead&&b.x>-40&&b.x<els.canvas.width+40&&b.y>-40&&b.y<els.canvas.height+40);updateUI()}
+
+function drawShip(px,py){const skin=getSkin();x.save();x.translate(px,py);if(game.player.inv>0&&Math.floor(game.player.inv/5)%2===0)x.globalAlpha=.35;for(let i=0;i<game.player.trail.length;i++){const t=game.player.trail[i],a=(i+1)/game.player.trail.length*.18;x.globalAlpha=a;x.fillStyle=skin.trail;x.beginPath();x.arc(t.x-px,t.y-py,2.5,0,Math.PI*2);x.fill();if(game.player.trailFire){x.fillStyle='rgba(255,140,80,.09)';x.beginPath();x.arc(t.x-px,t.y-py,7,0,Math.PI*2);x.fill()}}x.globalAlpha=1;x.shadowColor=skin.core;x.shadowBlur=16;x.fillStyle=skin.body;x.beginPath();x.moveTo(0,-20);x.lineTo(-14,14);x.lineTo(-6,8);x.lineTo(0,12);x.lineTo(6,8);x.lineTo(14,14);x.closePath();x.fill();x.fillStyle=skin.core;x.beginPath();x.moveTo(0,-12);x.lineTo(-6,8);x.lineTo(6,8);x.closePath();x.fill();const f=rand(7,12),g=x.createLinearGradient(0,10,0,20+f);g.addColorStop(0,skin.flame);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.moveTo(-5,11);x.lineTo(5,11);x.lineTo(0,21+f);x.closePath();x.fill();if(game.player.shield>0){x.strokeStyle='rgba(126,195,255,.55)';x.lineWidth=2;x.shadowBlur=8;x.beginPath();x.arc(0,0,24,0,Math.PI*2);x.stroke()}x.restore()}
+function draw(){x.clearRect(0,0,els.canvas.width,els.canvas.height);x.fillStyle='#070912';x.fillRect(0,0,els.canvas.width,els.canvas.height);for(const s of game.stars){x.globalAlpha=s.a;x.fillStyle='#fff';x.beginPath();x.arc(s.x,s.y,s.r,0,Math.PI*2);x.fill()}x.globalAlpha=1;for(const g of game.gems){x.save();x.shadowColor=g.col;x.shadowBlur=14;x.fillStyle=g.col;x.beginPath();x.moveTo(g.x,g.y-7);x.lineTo(g.x+6,g.y);x.lineTo(g.x,g.y+7);x.lineTo(g.x-6,g.y);x.closePath();x.fill();x.restore()}for(const b of game.bullets){x.save();x.shadowColor=b.col;x.shadowBlur=12;x.fillStyle=b.col;x.beginPath();x.arc(b.x,b.y,b.r,0,Math.PI*2);x.fill();x.restore()}for(const b of game.enemyBullets){x.save();x.shadowColor=b.col;x.shadowBlur=12;x.fillStyle=b.col;x.beginPath();x.arc(b.x,b.y,b.r,0,Math.PI*2);x.fill();x.restore()}for(const e of game.enemies){x.save();x.translate(e.x,e.y);x.shadowColor=e.col;x.shadowBlur=18;x.globalAlpha=e.frozen>0?.55:1;x.fillStyle=e.col;if(e.type==='boss'){x.beginPath();x.moveTo(0,-34);x.lineTo(34,0);x.lineTo(24,28);x.lineTo(0,14);x.lineTo(-24,28);x.lineTo(-34,0);x.closePath();x.fill();x.fillStyle='rgba(0,0,0,.45)';x.fillRect(-32,40,64,6);x.fillStyle='#ff7aa8';x.fillRect(-32,40,64*(e.hp/e.maxHp),6)}else if(e.type==='tank'){x.fillRect(-16,-16,32,32);x.fillStyle='rgba(0,0,0,.35)';x.fillRect(-16,21,32,4);x.fillStyle=e.col;x.fillRect(-16,21,32*(e.hp/e.maxHp),4)}else{x.beginPath();x.arc(0,0,e.r,0,Math.PI*2);x.fill()}x.restore()}if(game.player){if(game.player.orbital>0){for(let i=0;i<game.player.orbital;i++){const ang=game.frame/28+i*(Math.PI*2/game.player.orbital),ox=game.player.x+Math.cos(ang)*(28+6*game.player.orbital),oy=game.player.y+Math.sin(ang)*(28+6*game.player.orbital);x.save();x.shadowColor='#ffd166';x.shadowBlur=10;x.fillStyle='#ffd166';x.beginPath();x.arc(ox,oy,6,0,Math.PI*2);x.fill();x.restore()}}drawShip(game.player.x,game.player.y)}for(const p of game.particles){x.save();x.globalAlpha=p.mine?Math.max(.2,p.life/200):p.life;x.shadowColor=p.col;x.shadowBlur=8;x.fillStyle=p.col;x.beginPath();x.arc(p.x,p.y,p.r,0,Math.PI*2);x.fill();x.restore()}if(game.state==='playing'){x.fillStyle='rgba(255,255,255,.045)';x.font='11px Orbitron';x.fillText('ESC — pause',els.canvas.width-112,els.canvas.height-14)}}
+
+els.menuStart.addEventListener('click',startRun);els.menuHangar.addEventListener('click',openHangar);els.topHangar.addEventListener('click',openHangar);els.hangarClose.addEventListener('click',closeHangar);els.pauseResume.addEventListener('click',resumeGame);els.pauseHangar.addEventListener('click',openHangar);els.rerollBtn.addEventListener('click',()=>{if(game.state==='upgrade'&&game.rerolls>0){game.rerolls--;buildUpgradeCards(true);updateUI();showToast('Реролл')}});
+initStars();renderSkins();updateUI();let _lt=0;(function loop(t){window._dt=_lt?Math.min((t-_lt)/16.667,2.5):1;_lt=t;update();draw();requestAnimationFrame(loop)
+  // Draw joystick on canvas if active
+  if(window._joyDraw && game.state==='playing') window._joyDraw(x);
+})(0);
+
+// ── CANVAS JOYSTICK (drawn directly on game canvas) ──────────────────────
+(function(){
+  const canvas = document.querySelector('canvas');
+  if(!canvas) return;
+
+  const R = 45;   // outer ring radius
+  const TR = 20;  // thumb radius
+  let active = false, tid = null;
+  let bx = 0, by = 0;   // base center
+  let tx = 0, ty = 0;   // thumb pos
+  let jx = 0, jy = 0;
+  let visible = false;
+
+  // Expose draw function
+  // Fixed base position (bottom-left)
+  const FIXED_BX = 80, FIXED_BY_OFFSET = 100; // from bottom
+
+  window._joyDraw = function(ctx){
+    const cH = ctx.canvas.height;
+    const fixBY = cH - FIXED_BY_OFFSET;
+    const drawBX = active ? bx : FIXED_BX;
+    const drawBY = active ? by : fixBY;
+    const drawTX = active ? tx : FIXED_BX;
+    const drawTY = active ? ty : fixBY;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // outer ring - always visible
+    ctx.beginPath();
+    ctx.arc(drawBX, drawBY, R, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(46,216,255,0.4)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(46,216,255,0.07)';
+    ctx.fill();
+
+    // thumb
+    ctx.beginPath();
+    ctx.arc(drawTX, drawTY, TR, 0, Math.PI*2);
+    ctx.fillStyle = active ? 'rgba(46,216,255,0.7)' : 'rgba(46,216,255,0.3)';
+    ctx.fill();
+    ctx.strokeStyle = active ? 'rgba(46,216,255,1)' : 'rgba(46,216,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  function updateThumb(cx, cy){
+    let dx = cx - bx, dy = cy - by;
+    const len = Math.hypot(dx, dy);
+    if(len > R){ dx=dx/len*R; dy=dy/len*R; }
+    tx = bx+dx; ty = by+dy;
+    jx = dx/R; jy = dy/R;
+  }
+
+  function inJoyZone(cx, cy){
+    // left 55% of screen, bottom 55% - generous zone
+    return cx < window.innerWidth*0.55 && cy > window.innerHeight*0.45;
+  }
+
+  document.addEventListener('touchstart', function(e){
+    const overlayOpen = document.querySelector && !!document.querySelector('.overlay:not(.hidden)');
+    if(overlayOpen) return;
+    for(let i=0; i<e.changedTouches.length; i++){
+      const t = e.changedTouches[i];
+      if(tid===null && inJoyZone(t.clientX, t.clientY)){
+        tid = t.identifier;
+        active = true;
+        visible = true; // always true when playing
+        bx = t.clientX;
+        by = t.clientY;
+        tx = bx; ty = by;
+        jx = 0; jy = 0;
+        e.preventDefault();
+        break;
+      }
+    }
+  }, {passive:false});
+
+  document.addEventListener('touchmove', function(e){
+    for(let i=0; i<e.changedTouches.length; i++){
+      const t = e.changedTouches[i];
+      if(t.identifier===tid){
+        updateThumb(t.clientX, t.clientY);
+        e.preventDefault();
+        break;
+      }
+    }
+  }, {passive:false});
+
+  function onEnd(e){
+    for(let i=0; i<e.changedTouches.length; i++){
+      if(e.changedTouches[i].identifier===tid){
+        tid=null; active=false; visible=false; jx=0; jy=0;
+        break;
+      }
+    }
+  }
+  document.addEventListener('touchend',    onEnd, {passive:false});
+  document.addEventListener('touchcancel', onEnd, {passive:false});
+
+  window._jx = function(){ return jx; };
+  window._jy = function(){ return jy; };
+})();
+
+// ── Telegram WebApp init ──────────────────────────────────────────────────
+(function(){
+  if(!window.Telegram||!window.Telegram.WebApp) return;
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
+  // Disable share/back buttons that trigger group picker
+  if(tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  if(tg.isClosingConfirmationEnabled !== undefined) tg.enableClosingConfirmation();
+})();
+
+
+// ── Upgrade card navigation ────────────────────────────────────────────────
+(function(){
+  function initCardNav(){
+    const cards = document.getElementById('upgradeCards');
+    const prev  = document.getElementById('cardPrev');
+    const next  = document.getElementById('cardNext');
+    const dots  = document.getElementById('cardDots');
+    if(!cards || !prev || !next) return;
+
+    let cur = 0;
+
+    function getCount(){ return cards.children.length; }
+
+    function buildDots(){
+      dots.innerHTML = '';
+      const n = getCount();
+      for(let i=0;i<n;i++){
+        const d = document.createElement('div');
+        d.className = 'dot' + (i===cur?' active':'');
+        dots.appendChild(d);
+      }
+    }
+
+    function scrollTo(idx){
+      const n = getCount();
+      if(n===0) return;
+      cur = Math.max(0, Math.min(idx, n-1));
+      const card = cards.children[cur];
+      if(card) card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
+      buildDots();
+    }
+
+    prev.addEventListener('click', ()=>scrollTo(cur-1));
+    next.addEventListener('click', ()=>scrollTo(cur+1));
+
+    // Reset when upgrade overlay opens
+    const upg = document.getElementById('upgradeOverlay');
+    if(upg){
+      const obs = new MutationObserver(()=>{
+        if(!upg.classList.contains('hidden')){
+          cur = 0;
+          setTimeout(()=>{ scrollTo(0); }, 50);
+        }
+      });
+      obs.observe(upg, {attributes:true, attributeFilter:['class']});
+    }
+
+    // Also update dots on scroll
+    cards.addEventListener('scroll', ()=>{
+      const cardW = cards.children[0] ? cards.children[0].offsetWidth : 1;
+      cur = Math.round(cards.scrollLeft / (cardW + 12));
+      buildDots();
+    });
+  }
+
+  // Init after DOM ready
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', initCardNav);
+  } else {
+    initCardNav();
+  }
+})();
+
+</script>
+</body>
+</html>
