@@ -380,7 +380,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-screen bg-[#040609] text-white relative font-sans select-none antialiased">
+    <div className="w-full h-[100dvh] bg-[#040609] text-white relative font-sans select-none antialiased overflow-hidden">
       {/* Background Star loop wrapper behind everything */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-30 select-none">
         <canvas className="absolute block w-full h-full" id="menuBackground" />
