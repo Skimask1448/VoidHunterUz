@@ -1,0 +1,6 @@
+{
+  "name": "Void Hunter",
+  "description": "An action-packed space bullet-heaven roguelike with gorgeous procedural textures, advanced upgrade synergies, and customizable rocket skins.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
