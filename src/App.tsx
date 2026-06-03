@@ -480,9 +480,9 @@ export default function App() {
 
                 <button
                   onClick={() => setActiveScreen('hangar')}
-                  className="w-full mt-3 sm:mt-4 py-2 sm:py-2.5 bg-zinc-800 hover:bg-zinc-700 text-indigo-400 hover:text-indigo-300 border border-zinc-700 hover:border-zinc-600 rounded-lg sm:rounded-xl text-[10px] sm:text-xs uppercase font-extrabold tracking-widest transition cursor-pointer font-mono"
+                  className="w-full mt-3 sm:mt-4 py-2 sm:py-2.5 bg-zinc-800 hover:bg-zinc-700 text-indigo-400 hover:text-indigo-300 border border-zinc-700 hover:border-zinc-600 rounded-lg sm:rounded-xl text-[9px] sm:text-xs uppercase font-extrabold tracking-wide sm:tracking-widest transition cursor-pointer font-mono"
                 >
-                  🔧 МОДИФИЦИРОВАТЬ АНГАР
+                  🔧 АНГАР
                 </button>
               </div>
 
