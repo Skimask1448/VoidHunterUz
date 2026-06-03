@@ -199,8 +199,25 @@ export default function GameCanvas({
 
   // Run on start
   useEffect(() => {
-    resetRun();
-    
+    if (gameTick === 0) {
+      // Warm up stars for menu background
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      G.current.stars = [];
+      for (let i = 0; i < 120; i++) {
+        G.current.stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: Math.random() * 1.5 + 0.3,
+          s: Math.random() * 0.4 + 0.1,
+          a: Math.random() * 0.7 + 0.2,
+        });
+      }
+      G.current.state = 'menu';
+    } else {
+      resetRun();
+    }
+
     // Set up Keyboard listens
     const handleKeyDown = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = true;
