@@ -277,6 +277,8 @@ export default function GameCanvas({
       Sound.play('exp_small');
     }
 
+    const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|Telegram/i.test(navigator.userAgent);
+
     const ringColor = isFrozen ? '#a5f3fc' : isPoisoned ? '#10b981' : col;
     G.current.particles.push({
       x,
@@ -291,7 +293,7 @@ export default function GameCanvas({
       friction: 0
     });
 
-    const debrisCount = isBoss ? 16 : isMiniboss ? 8 : 4;
+    const debrisCount = Math.max(1, Math.floor((isBoss ? 16 : isMiniboss ? 8 : 4) * (isMobile ? 0.5 : 1)));
     for (let i = 0; i < debrisCount; i++) {
       const a = Math.random() * Math.PI * 2;
       const dSpeed = Math.random() * (isBoss ? 6.5 : 4.5) + 1.8;
@@ -310,7 +312,7 @@ export default function GameCanvas({
       });
     }
 
-    const sparkCount = isBoss ? 35 : isMiniboss ? 20 : 9;
+    const sparkCount = Math.max(1, Math.floor((isBoss ? 35 : isMiniboss ? 20 : 9) * (isMobile ? 0.5 : 1)));
     for (let i = 0; i < sparkCount; i++) {
       const a = Math.random() * Math.PI * 2;
       const sSpeed = Math.random() * (isBoss ? 8.0 : 4.8) + 1.2;
@@ -336,7 +338,7 @@ export default function GameCanvas({
       });
     }
 
-    const smokeCount = isBoss ? 12 : isMiniboss ? 7 : 3;
+    const smokeCount = Math.max(1, Math.floor((isBoss ? 12 : isMiniboss ? 7 : 3) * (isMobile ? 0.4 : 1)));
     for (let i = 0; i < smokeCount; i++) {
       const a = Math.random() * Math.PI * 2;
       const sSpeed = Math.random() * 1.4 + 0.4;
@@ -1650,6 +1652,12 @@ export default function GameCanvas({
       return pt.life > 0;
     });
 
+    const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|Telegram/i.test(navigator.userAgent);
+    const maxParticles = isMobile ? 80 : 200;
+    if (G.current.particles.length > maxParticles) {
+      G.current.particles.splice(0, G.current.particles.length - maxParticles);
+    }
+
     // Handle structural UI updates hook
     setHudInfo({
       score: G.current.score,
@@ -1702,8 +1710,28 @@ export default function GameCanvas({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const width = (canvas.width = window.innerWidth);
-      const height = (canvas.height = window.innerHeight);
+      // Monkey patch shadowBlur on mobile to ignore expensive glow effects
+      if (typeof (ctx as any)._shadowBlurPatched === 'undefined') {
+        const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|Telegram/i.test(navigator.userAgent);
+        if (isMobile) {
+          Object.defineProperty(ctx, 'shadowBlur', {
+            get: () => 0,
+            set: () => {},
+            configurable: true
+          });
+        }
+        (ctx as any)._shadowBlurPatched = true;
+      }
+
+      // Avoid resizing the canvas buffer every frame unless width/height actually changes
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+      if (canvas.width !== currentWidth || canvas.height !== currentHeight) {
+        canvas.width = currentWidth;
+        canvas.height = currentHeight;
+      }
+      const width = canvas.width;
+      const height = canvas.height;
 
       // Core mechanics logic
       if (G.current.state === 'playing') {
@@ -2009,11 +2037,16 @@ export default function GameCanvas({
           }
         }
 
+        const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|Telegram/i.test(navigator.userAgent);
+        const useGlow = !isMobile;
+
         // Collectible crystallite nodes
         for (const g of G.current.gems) {
           ctx.save();
-          ctx.shadowColor = g.col;
-          ctx.shadowBlur = 8;
+          if (useGlow) {
+            ctx.shadowColor = g.col;
+            ctx.shadowBlur = 8;
+          }
           ctx.fillStyle = g.col;
           
           if (g.type === 'credit') {
@@ -2045,18 +2078,9 @@ export default function GameCanvas({
 
         // Particle nodes
         for (const pt of G.current.particles) {
-          ctx.save();
-          ctx.globalAlpha = pt.life;
-          
-          if (pt.type === 'ring') {
-            ctx.strokeStyle = pt.col;
-            ctx.lineWidth = 2.5 * pt.life;
-            ctx.shadowColor = pt.col;
-            ctx.shadowBlur = 10 * pt.life;
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
-            ctx.stroke();
-          } else if (pt.type === 'debris') {
+          if (pt.type === 'debris') {
+            ctx.save();
+            ctx.globalAlpha = pt.life;
             ctx.fillStyle = pt.col;
             ctx.strokeStyle = pt.col;
             ctx.lineWidth = 1.0;
@@ -2069,20 +2093,37 @@ export default function GameCanvas({
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-          } else if (pt.type === 'smoke') {
-            ctx.fillStyle = pt.col;
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.restore();
           } else {
-            ctx.fillStyle = pt.col;
-            ctx.shadowColor = pt.col;
-            ctx.shadowBlur = 8 * pt.life;
+            ctx.globalAlpha = pt.life;
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
-            ctx.fill();
+            if (pt.type === 'ring') {
+              ctx.strokeStyle = pt.col;
+              ctx.lineWidth = 2.5 * pt.life;
+              if (useGlow) {
+                ctx.shadowColor = pt.col;
+                ctx.shadowBlur = 10 * pt.life;
+              }
+              ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+              ctx.stroke();
+            } else if (pt.type === 'smoke') {
+              ctx.fillStyle = pt.col;
+              ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+              ctx.fill();
+            } else { // spark
+              ctx.fillStyle = pt.col;
+              if (useGlow) {
+                ctx.shadowColor = pt.col;
+                ctx.shadowBlur = 8 * pt.life;
+              }
+              ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
-          ctx.restore();
+        }
+        ctx.globalAlpha = 1.0;
+        if (useGlow) {
+          ctx.shadowBlur = 0;
         }
 
         // Onscreen flash notifications
