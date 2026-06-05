@@ -190,6 +190,11 @@ export interface Particle {
   r: number;
   angle?: number;
   fade?: boolean;
+  type?: 'spark' | 'smoke' | 'debris' | 'ring';
+  maxLife?: number;
+  spinSpd?: number;
+  growth?: number;
+  friction?: number;
 }
 
 export interface LightningBolt {

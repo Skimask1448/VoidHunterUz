@@ -199,7 +199,7 @@ export default function GameCanvas({
 
   // Run on start
   useEffect(() => {
-    if (gameTick === 0) {
+    if (gameTick === 0 || state === 'menu') {
       // Warm up stars for menu background
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -217,7 +217,7 @@ export default function GameCanvas({
     } else {
       resetRun();
     }
-
+    
     // Set up Keyboard listens
     const handleKeyDown = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = true;
@@ -255,6 +255,112 @@ export default function GameCanvas({
         col,
         r: Math.random() * 3 + 1.5,
       });
+    }
+  };
+
+  const spawnExplosion = (
+    x: number,
+    y: number,
+    col: string,
+    type: string,
+    isBoss: boolean,
+    isMiniboss: boolean,
+    isFrozen: boolean,
+    isPoisoned: boolean
+  ) => {
+    const shakeAmount = isBoss ? 25 : isMiniboss ? 14 : 5;
+    G.current.screenShake = Math.max(G.current.screenShake, shakeAmount);
+
+    if (isBoss) {
+      Sound.play('exp_large');
+    } else {
+      Sound.play('exp_small');
+    }
+
+    const ringColor = isFrozen ? '#a5f3fc' : isPoisoned ? '#10b981' : col;
+    G.current.particles.push({
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      life: 1.0,
+      col: ringColor,
+      r: 6,
+      type: 'ring',
+      growth: isBoss ? 5.0 : isMiniboss ? 3.0 : 1.6,
+      friction: 0
+    });
+
+    const debrisCount = isBoss ? 16 : isMiniboss ? 8 : 4;
+    for (let i = 0; i < debrisCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dSpeed = Math.random() * (isBoss ? 6.5 : 4.5) + 1.8;
+      G.current.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * dSpeed,
+        vy: Math.sin(a) * dSpeed,
+        life: Math.random() * 0.75 + 0.35,
+        col: isFrozen ? '#a5f3fc' : isPoisoned ? '#10b981' : col,
+        r: Math.random() * (isBoss ? 5.0 : 3.2) + 1.6,
+        type: 'debris',
+        angle: Math.random() * Math.PI * 2,
+        spinSpd: (Math.random() - 0.5) * 0.22,
+        friction: 0.94
+      });
+    }
+
+    const sparkCount = isBoss ? 35 : isMiniboss ? 20 : 9;
+    for (let i = 0; i < sparkCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sSpeed = Math.random() * (isBoss ? 8.0 : 4.8) + 1.2;
+      let sparkCol = col;
+      if (!isFrozen && !isPoisoned) {
+        sparkCol = Math.random() < 0.35 ? '#ffffff' : Math.random() < 0.55 ? '#f59e0b' : '#ef4444';
+      } else if (isFrozen) {
+        sparkCol = Math.random() < 0.4 ? '#ffffff' : '#e0f2fe';
+      } else if (isPoisoned) {
+        sparkCol = Math.random() < 0.4 ? '#6ee7b7' : '#10b981';
+      }
+
+      G.current.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * sSpeed,
+        vy: Math.sin(a) * sSpeed,
+        life: Math.random() * 0.6 + 0.4,
+        col: sparkCol,
+        r: Math.random() * (isBoss ? 4.0 : 2.5) + 1.0,
+        type: 'spark',
+        friction: 0.93
+      });
+    }
+
+    const smokeCount = isBoss ? 12 : isMiniboss ? 7 : 3;
+    for (let i = 0; i < smokeCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sSpeed = Math.random() * 1.4 + 0.4;
+      G.current.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * sSpeed,
+        vy: Math.sin(a) * sSpeed,
+        life: Math.random() * 0.8 + 0.4,
+        col: Math.random() < 0.5 ? 'rgba(71, 85, 105, 0.4)' : 'rgba(148, 163, 184, 0.25)',
+        r: Math.random() * (isBoss ? 9 : 5.5) + 3.5,
+        type: 'smoke',
+        growth: 0.15,
+        friction: 0.96
+      });
+    }
+
+    if (isBoss) {
+      for (let i = 0; i < 4; i++) {
+        const branchAng = Math.random() * Math.PI * 2;
+        const lx2 = x + Math.cos(branchAng) * 130;
+        const ly2 = y + Math.sin(branchAng) * 130;
+        addLightning(x, y, lx2, ly2, isFrozen ? '#a5f3fc' : isPoisoned ? '#34d399' : col, 14);
+      }
     }
   };
 
@@ -450,15 +556,6 @@ export default function GameCanvas({
     if (!p || G.current.state !== 'playing') return;
 
     G.current.frame++;
-
-    // Star stream motion
-    for (const s of G.current.stars) {
-      s.y += s.s * 1.5;
-      if (s.y > height) {
-        s.y = 0;
-        s.x = Math.random() * width;
-      }
-    }
 
     // Capture speed coefficients and keyboard controls
     const jx = joystickValue.current.x;
@@ -1423,7 +1520,7 @@ export default function GameCanvas({
         }
 
         e.hp = -999; // destroy
-        burstAt(p.x, p.y, '#ff4e6a', 6, 3);
+        spawnExplosion(e.x, e.y, e.col, e.type, e.boss || false, e.miniboss || false, e.frozen > 0, e.poisonTimer > 0);
 
         checkDeaths(p);
       }
@@ -1466,7 +1563,7 @@ export default function GameCanvas({
     for (const e of G.current.enemies) {
       if (e.hp <= 0 && e.hp !== -999) {
         G.current.score += e.score;
-        burstAt(e.x, e.y, e.col, isNaN(e.score) ? 4 : 8, 2.5);
+        spawnExplosion(e.x, e.y, e.col, e.type, e.boss || false, e.miniboss || false, e.frozen > 0, e.poisonTimer > 0);
 
         // Populate visual gems
         const gemColor = e.xpTier === 0 ? '#4ade80' : e.xpTier === 1 ? '#60a5fa' : '#fbbf24';
@@ -1537,9 +1634,19 @@ export default function GameCanvas({
     G.current.eBullets = G.current.eBullets.filter(eb => !eb.dead && eb.y < height + 50);
     G.current.gems = G.current.gems.filter(g => !g.dead);
     G.current.particles = G.current.particles.filter(pt => {
-      pt.life -= 0.025;
+      const decay = pt.type === 'smoke' ? 0.012 : 0.022;
+      pt.life -= decay;
+      const f = pt.friction !== undefined ? pt.friction : 0.95;
+      pt.vx *= f;
+      pt.vy *= f;
       pt.x += pt.vx;
       pt.y += pt.vy;
+      if (pt.growth) {
+        pt.r += pt.growth;
+      }
+      if (pt.spinSpd && pt.angle !== undefined) {
+        pt.angle += pt.spinSpd;
+      }
       return pt.life > 0;
     });
 
@@ -1616,8 +1723,13 @@ export default function GameCanvas({
         G.current.screenShake *= 0.9;
       }
 
-      // Draw background stars
+      // Draw background stars and scroll them down gently
       for (const s of G.current.stars) {
+        s.y += s.s * 1.5;
+        if (s.y > height) {
+          s.y = 0;
+          s.x = Math.random() * width;
+        }
         ctx.fillStyle = `rgba(255, 255, 255, ${s.a})`;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
@@ -1935,10 +2047,41 @@ export default function GameCanvas({
         for (const pt of G.current.particles) {
           ctx.save();
           ctx.globalAlpha = pt.life;
-          ctx.fillStyle = pt.col;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
-          ctx.fill();
+          
+          if (pt.type === 'ring') {
+            ctx.strokeStyle = pt.col;
+            ctx.lineWidth = 2.5 * pt.life;
+            ctx.shadowColor = pt.col;
+            ctx.shadowBlur = 10 * pt.life;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (pt.type === 'debris') {
+            ctx.fillStyle = pt.col;
+            ctx.strokeStyle = pt.col;
+            ctx.lineWidth = 1.0;
+            ctx.translate(pt.x, pt.y);
+            ctx.rotate(pt.angle || 0);
+            ctx.beginPath();
+            ctx.moveTo(0, -pt.r);
+            ctx.lineTo(pt.r * 0.5, pt.r * 0.7);
+            ctx.lineTo(-pt.r * 0.5, pt.r * 0.7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          } else if (pt.type === 'smoke') {
+            ctx.fillStyle = pt.col;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = pt.col;
+            ctx.shadowColor = pt.col;
+            ctx.shadowBlur = 8 * pt.life;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
           ctx.restore();
         }
 
@@ -2065,30 +2208,30 @@ export default function GameCanvas({
 
       {/* Modern Sci-Fi HUD overlays */}
       {state === 'playing' && (
-        <div className="absolute top-0 left-0 right-0 p-4 pointer-events-none flex justify-between select-none font-sans select-none antialiased">
+        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 pointer-events-none flex justify-between select-none font-sans antialiased text-white">
           {/* Stats cards columns */}
-          <div className="flex flex-col gap-2 pointer-events-auto">
-            <div className="flex gap-2">
-              <div className="px-3.5 py-1.5 bg-slate-900/80 border border-cyan-500/10 rounded-xl backdrop-blur-md">
-                <div className="text-[9px] uppercase tracking-widest text-slate-450 font-extrabold">Рекорд Очков</div>
-                <div className="text-sm font-black text-cyan-400">{hudInfo.score}</div>
+          <div className="flex flex-col gap-1.5 sm:gap-2 pointer-events-auto">
+            <div className="flex gap-1 sm:gap-2">
+              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Рекорд</div>
+                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.score}</div>
               </div>
-              <div className="px-3.5 py-1.5 bg-slate-900/80 border border-cyan-500/10 rounded-xl backdrop-blur-md">
-                <div className="text-[9px] uppercase tracking-widest text-slate-450 font-extrabold">Сектор волны</div>
-                <div className="text-sm font-black text-cyan-400">{hudInfo.wave}</div>
+              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Волна</div>
+                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.wave}</div>
               </div>
-              <div className="px-3.5 py-1.5 bg-slate-900/80 border border-cyan-500/10 rounded-xl backdrop-blur-md">
-                <div className="text-[9px] uppercase tracking-widest text-slate-450 font-extrabold">Уровень</div>
-                <div className="text-sm font-black text-cyan-400">{hudInfo.level}</div>
+              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Уровень</div>
+                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.level}</div>
               </div>
             </div>
             {/* Health hull safety stats */}
-            <div className="w-48 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 backdrop-blur-sm flex flex-col gap-1">
-              <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-slate-300">
-                <span>ПРОЧНОСТЬ ОБШИВКИ</span>
+            <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-800 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
+              <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
+                <span>КОРПУС</span>
                 <span className="text-cyan-400">{Math.round(hudInfo.hpPercent)}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+              <div className="w-full h-1 sm:h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-red-500 via-orange-400 to-emerald-400 transition-all duration-150"
                   style={{ width: `${hudInfo.hpPercent}%` }}
@@ -2098,28 +2241,28 @@ export default function GameCanvas({
           </div>
 
           {/* Right hand health levels bar columns */}
-          <div className="flex flex-col items-end gap-2 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <div className="px-3 py-1.5 bg-slate-900/80 border border-slate-750 rounded-xl backdrop-blur-md flex items-center gap-1.5">
-                <span className="text-yellow-400 text-xs">💎</span>
-                <span className="text-xs font-black text-slate-100">{hudInfo.credits}</span>
+          <div className="flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="px-1.5 py-1 bg-slate-900/80 border border-slate-750 rounded-lg sm:rounded-xl backdrop-blur-md flex items-center gap-1">
+                <span className="text-yellow-400 text-[10px] sm:text-xs">💎</span>
+                <span className="text-[10px] sm:text-xs font-black text-slate-100">{hudInfo.credits}</span>
               </div>
               
               <button
                 onClick={() => onStateChange('pause')}
-                className="pointer-events-auto px-4 py-2 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition cursor-pointer select-none"
+                className="pointer-events-auto px-2 py-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition cursor-pointer select-none"
               >
                 ⏸ Пауза
               </button>
             </div>
 
             {/* EXP Progress tracking Bar */}
-            <div className="w-48 bg-slate-950/80 p-2.5 rounded-xl border border-slate-850 backdrop-blur-sm flex flex-col gap-1">
-              <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-slate-300">
-                <span>ЯДРО ОПЫТА (XP)</span>
+            <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-850 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
+              <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
+                <span>ОПЫТ</span>
                 <span className="text-purple-400">{Math.round(hudInfo.xpPercent)}%</span>
               </div>
-              <div className="w-full h-2 bg-slate-850 rounded-full overflow-hidden p-0.5 border border-slate-800/40">
+              <div className="w-full h-1 sm:h-2 bg-slate-850 rounded-full overflow-hidden p-0.5 border border-slate-800/40">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-150"
                   style={{ width: `${hudInfo.xpPercent}%` }}
@@ -2129,9 +2272,9 @@ export default function GameCanvas({
 
             {/* Auxiliary lasers indicators */}
             {hudInfo.hasLaser && (
-              <div className="w-48 bg-slate-950/80 p-2 rounded-lg border border-slate-850 backdrop-blur-sm flex items-center justify-between gap-1.5">
-                <span className="text-[9px] font-black tracking-wider text-slate-400">ЗАРЯД ЛАЗЕРА:</span>
-                <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+              <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1 sm:p-2 rounded-lg border border-slate-850 backdrop-blur-sm flex items-center justify-between gap-1">
+                <span className="text-[7px] sm:text-[9px] font-black tracking-wider text-slate-400">ЛАЗЕР:</span>
+                <div className="flex-1 h-1 bg-slate-900 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-yellow-400 transition-all"
                     style={{ width: `${hudInfo.laserPercent}%` }}

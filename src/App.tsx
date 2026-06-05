@@ -380,7 +380,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-[100dvh] bg-[#040609] text-white relative font-sans select-none antialiased overflow-hidden">
+    <div className="w-full h-screen bg-[#040609] text-white relative font-sans select-none antialiased">
       {/* Background Star loop wrapper behind everything */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-30 select-none">
         <canvas className="absolute block w-full h-full" id="menuBackground" />
@@ -408,44 +408,48 @@ export default function App() {
 
       {/* Main menu Screen overlay */}
       {activeScreen === 'menu' && (
-        <div className="fixed inset-0 z-30 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-zinc-950/90 backdrop-blur-md select-none antialiased overflow-y-auto">
-          <div className="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl sm:rounded-3xl p-3 sm:p-6 md:p-8 shadow-2xl flex flex-col font-sans my-2 sm:my-auto">
+        <div className="fixed inset-0 z-30 overflow-y-auto p-4 bg-zinc-950/90 backdrop-blur-md flex items-start justify-center md:items-center select-none antialiased">
+          <div className="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col font-sans my-auto">
             {/* Header Section */}
-            <header className="flex justify-between items-center mb-4 sm:mb-6 border-b border-zinc-800 pb-3 sm:pb-4">
+            <header className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
               <div>
-                <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white font-sans">
-                  VOID HUNTER <span className="text-zinc-500 font-mono text-xs sm:text-sm ml-2">v1.4.0</span>
+                <h1 className="text-2xl font-black tracking-tight text-white font-sans">
+                  VOID HUNTER <span className="text-zinc-500 font-mono text-sm ml-2">v1.4.0</span>
                 </h1>
-                <p className="text-zinc-500 text-[8px] sm:text-[10px] uppercase tracking-widest mt-1 font-mono">
-                  ОРУЖЕЙНАЯ БОЕГОЛОВКА СЕКТОРА
+                <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-1 font-mono">
+                  ОРУЖЕЙНАЯ БОЕГОЛОВКА СЕКТОРА / ASSET REPLACE: ACTIVE
                 </p>
               </div>
-              <div className="flex gap-2 sm:gap-3 items-center">
+              <div className="flex gap-3 items-center">
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-zinc-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  SYSTEM: ONLINE
+                </span>
                 <button
                   onClick={handleMuteToggle}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold border border-zinc-700 transition uppercase tracking-widest cursor-pointer font-mono"
+                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-[10px] font-extrabold border border-zinc-700 transition uppercase tracking-widest cursor-pointer font-mono"
                 >
-                  {isMuted ? '🔇' : '🔊'}
+                  {isMuted ? '🔇 МЬЮТ' : '🔊 ЗВУК'}
                 </button>
               </div>
             </header>
 
             {/* Bento Grid Content */}
-            <div className="grid grid-cols-12 gap-3 sm:gap-4 flex-grow">
-
+            <div className="grid grid-cols-12 gap-4 flex-grow">
+              
               {/* Left Column: Active Hangar Details */}
-              <div className="col-span-12 md:col-span-4 bg-zinc-950 border border-zinc-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 flex flex-col justify-between">
+              <div className="col-span-12 md:col-span-4 bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-center mb-3 sm:mb-4">
-                    <h2 className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-indigo-400 font-mono">ТЕКУЩЕЕ СНАРЯЖЕНИЕ</h2>
-                    <span className="text-[8px] sm:text-[9px] bg-zinc-900 px-1.5 sm:px-2 py-0.5 rounded text-zinc-500 font-mono uppercase">АКТИВНО</span>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-[10px] font-black uppercase tracking-wider text-indigo-400 font-mono">ТЕКУЩЕЕ СНАРЯЖЕНИЕ</h2>
+                    <span className="text-[9px] bg-zinc-900 px-2 py-0.5 rounded text-zinc-500 font-mono uppercase">АКТИВНО</span>
                   </div>
-
+                  
                   {/* Ship skin showcase */}
-                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-lg sm:rounded-xl p-2 sm:p-3 flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3 hover:border-indigo-500/20 transition">
-                    <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex-shrink-0"
-                      style={{
+                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-3 flex items-center gap-3 mb-3 hover:border-indigo-500/20 transition">
+                    <div 
+                      className="w-10 h-10 rounded-full flex-shrink-0"
+                      style={{ 
                         background: skins.find(s => s.id === selectedSkin)?.gradient
                           ? `linear-gradient(135deg, ${skins.find(s => s.id === selectedSkin)?.gradient?.join(',')})`
                           : skins.find(s => s.id === selectedSkin)?.col || '#38bdf8',
@@ -453,16 +457,16 @@ export default function App() {
                       }}
                     />
                     <div>
-                      <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase font-mono tracking-wider">КОРПУС</div>
-                      <div className="text-xs sm:text-sm font-bold text-zinc-200">{skins.find(s => s.id === selectedSkin)?.name || 'Azure Core'}</div>
+                      <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">КОРПУС</div>
+                      <div className="text-sm font-bold text-zinc-200">{skins.find(s => s.id === selectedSkin)?.name || 'Azure Core'}</div>
                     </div>
                   </div>
 
                   {/* Rocket skin showcase */}
-                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-lg sm:rounded-xl p-2 sm:p-3 flex items-center gap-2 sm:gap-3 hover:border-indigo-500/20 transition">
-                    <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center font-black text-base sm:text-lg flex-shrink-0 border"
-                      style={{
+                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-3 flex items-center gap-3 hover:border-indigo-500/20 transition">
+                    <div 
+                      className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg flex-shrink-0 border"
+                      style={{ 
                         backgroundColor: (rocketSkins.find(r => r.id === selectedRocketSkin)?.col || '#a78bfa') + '20',
                         borderColor: rocketSkins.find(r => r.id === selectedRocketSkin)?.col || '#a78bfa',
                         color: rocketSkins.find(r => r.id === selectedRocketSkin)?.col || '#a78bfa',
@@ -472,88 +476,88 @@ export default function App() {
                       ▲
                     </div>
                     <div>
-                      <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase font-mono tracking-wider">БОЕГОЛОВКА</div>
-                      <div className="text-xs sm:text-sm font-bold text-zinc-200">{rocketSkins.find(r => r.id === selectedRocketSkin)?.name || 'Azure Sting'}</div>
+                      <div className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider">БОЕГОЛОВКА</div>
+                      <div className="text-sm font-bold text-zinc-200">{rocketSkins.find(r => r.id === selectedRocketSkin)?.name || 'Azure Sting'}</div>
                     </div>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setActiveScreen('hangar')}
-                  className="w-full mt-3 sm:mt-4 py-2 sm:py-2.5 bg-zinc-800 hover:bg-zinc-700 text-indigo-400 hover:text-indigo-300 border border-zinc-700 hover:border-zinc-600 rounded-lg sm:rounded-xl text-[9px] sm:text-xs uppercase font-extrabold tracking-wide sm:tracking-widest transition cursor-pointer font-mono"
+                  className="w-full mt-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-indigo-400 hover:text-indigo-300 border border-zinc-700 hover:border-zinc-600 rounded-xl text-xs uppercase font-extrabold tracking-widest transition cursor-pointer font-mono"
                 >
-                  🔧 АНГАР
+                  🔧 МОДИФИЦИРОВАТЬ АНГАР
                 </button>
               </div>
 
               {/* Middle: Mission Control Launch Console */}
-              <div className="col-span-12 md:col-span-5 bg-zinc-900 border border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden bento-glow-indigo">
+              <div className="col-span-12 md:col-span-5 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden bento-glow-indigo">
                 <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none"></div>
-
-                <div className="relative text-center my-auto py-3 sm:py-4">
-                  <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 animate-bounce">🚀</div>
-                  <h3 className="text-base sm:text-lg font-black text-white tracking-wide uppercase">СВЕРХСВЕТОВОЙ ПРЫЖОК</h3>
-                  <p className="text-[10px] sm:text-xs text-zinc-400 mt-2 max-w-[280px] mx-auto leading-relaxed">
+                
+                <div className="relative text-center my-auto py-4">
+                  <div className="text-4xl mb-3 animate-bounce">🚀</div>
+                  <h3 className="text-lg font-black text-white tracking-wide uppercase">СВЕРХСВЕТОВОЙ ПРЫЖОК</h3>
+                  <p className="text-xs text-zinc-400 mt-2 max-w-[280px] mx-auto leading-relaxed">
                     Инициализация двигателей реактора для вылета в опасный роевой сектор с бесконечным наплывом противников.
                   </p>
                 </div>
 
                 <button
                   onClick={handleStartRun}
-                  className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs sm:text-sm font-black uppercase tracking-widest rounded-lg sm:rounded-xl transition duration-250 cursor-pointer shadow-[0_0_20px_rgba(99,102,241,0.45)] border border-indigo-400/20"
+                  className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-sm font-black uppercase tracking-widest rounded-xl transition duration-250 cursor-pointer shadow-[0_0_20px_rgba(99,102,241,0.45)] border border-indigo-400/20"
                 >
                   НАЧАТЬ ВЫЛЕТ!
                 </button>
               </div>
 
               {/* Right: Metrics / stats dashboard */}
-              <div className="col-span-12 md:col-span-3 flex flex-col gap-3 sm:gap-4">
-
+              <div className="col-span-12 md:col-span-3 flex flex-col gap-4">
+                
                 {/* Stats panel */}
-                <div className="bg-zinc-950 border border-zinc-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 flex-1 flex flex-col justify-between">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex-1 flex flex-col justify-between">
                   <div>
-                    <h2 className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-400 font-mono mb-2 sm:mb-3">БОРТОВОЙ ЖУРНАЛ</h2>
-
-                    <div className="space-y-3 sm:space-y-4">
+                    <h2 className="text-[10px] font-black uppercase tracking-wider text-emerald-400 font-mono mb-3">БОРТОВОЙ ЖУРНАЛ</h2>
+                    
+                    <div className="space-y-4">
                       <div>
-                        <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500 font-mono">ЛУЧШИЙ РЕКОРД</div>
-                        <div className="text-xl sm:text-2xl font-black font-mono text-zinc-100 mt-0.5">{bestScore.toLocaleString()}</div>
+                        <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">ЛУЧШИЙ РЕКОРД</div>
+                        <div className="text-2xl font-black font-mono text-zinc-100 mt-0.5">{bestScore.toLocaleString()}</div>
                       </div>
                       <div>
-                        <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500 font-mono">МАКСИМАЛЬНАЯ ВОЛНА</div>
-                        <div className="text-xl sm:text-2xl font-black font-mono text-indigo-400 mt-0.5">{bestWave} <span className="text-xs font-normal text-zinc-650">волн</span></div>
+                        <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">МАКСИМАЛЬНАЯ ВОЛНА</div>
+                        <div className="text-2xl font-black font-mono text-indigo-400 mt-0.5">{bestWave} <span className="text-xs font-normal text-zinc-650">волн</span></div>
                       </div>
                       <div>
-                        <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500 font-mono">СБЕРЕЖЕНИЯ</div>
-                        <div className="text-base sm:text-lg font-black font-mono text-amber-400 mt-0.5">{bankCredits} кр.</div>
+                        <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">СБЕРЕЖЕНИЯ</div>
+                        <div className="text-lg font-black font-mono text-amber-400 mt-0.5">{bankCredits} кр.</div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-zinc-900 flex justify-between gap-1">
+                  <div className="mt-4 pt-3 border-t border-zinc-900 flex justify-between gap-1">
                     <button
                       onClick={() => setActiveScreen('leaderboard')}
-                      className="flex-1 py-1 px-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider rounded transition cursor-pointer font-mono"
+                      className="flex-1 py-1 px-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[10px] font-bold uppercase tracking-wider rounded transition cursor-pointer font-mono"
                     >
-                      🏆
+                      🏆 ЛИДЕРЫ
                     </button>
                     <button
                       onClick={() => setActiveScreen('codex')}
-                      className="flex-1 py-1 px-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-amber-300 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider rounded transition cursor-pointer font-mono"
+                      className="flex-1 py-1 px-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-amber-300 text-[10px] font-bold uppercase tracking-wider rounded transition cursor-pointer font-mono"
                     >
-                      ⭐
+                      ⭐ СИНЕРГИИ
                     </button>
                   </div>
                 </div>
 
                 {/* Auxiliary quick status */}
-                <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col justify-between">
+                <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-2xl p-4 flex flex-col justify-between">
                   <div>
-                    <div className="text-[8px] sm:text-[9px] font-bold text-indigo-300 uppercase tracking-widest font-mono">СИНЕРГИИ</div>
-                    <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1">{unlockedSynergies.length} / 11</div>
+                    <div className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest font-mono">АКТИВИРОВАНО СИНЕРГИЙ</div>
+                    <div className="text-2xl font-bold font-mono text-white mt-1">{unlockedSynergies.length} / 11</div>
                   </div>
                   <div className="w-full bg-zinc-900 h-1.5 rounded-full mt-2 relative overflow-hidden">
-                    <div
+                    <div 
                       className="bg-indigo-500 h-full rounded-full shadow-[0_0_8px_#6366f1] transition-all duration-500"
                       style={{ width: `${Math.min(100, Math.max(10, (unlockedSynergies.length / 11) * 100))}%` }}
                     />
@@ -564,9 +568,9 @@ export default function App() {
             </div>
 
             {/* Bottom Status Bar */}
-            <footer className="hidden sm:flex justify-between items-center mt-4 sm:mt-6 text-[8px] sm:text-[9px] text-zinc-500 font-mono border-t border-zinc-800/60 pt-2 sm:pt-3">
-              <div className="flex gap-2 sm:gap-4">
-                <span>SYSTEM: STABLE</span>
+            <footer className="flex justify-between items-center mt-6 text-[9px] text-zinc-500 font-mono border-t border-zinc-800/60 pt-3">
+              <div className="flex gap-4">
+                <span>SYSTEM: COMPILING_STABLE</span>
                 <span>CACHE: 98.4%</span>
                 <span>SHADERS: COMPILED</span>
               </div>
@@ -580,18 +584,18 @@ export default function App() {
 
       {/* Upgrade cards selection Overlay */}
       {activeScreen === 'upgrade' && (
-        <div className="fixed inset-0 z-40 bg-zinc-950/80 backdrop-blur-md flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl flex flex-col bento-glow-indigo">
-            <div className="text-center mb-6">
-              <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20 font-mono">
+        <div className="fixed inset-0 z-40 bg-zinc-950/80 backdrop-blur-md flex items-start sm:items-center justify-center p-2 sm:p-4 select-none overflow-y-auto">
+          <div className="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col bento-glow-indigo my-auto">
+            <div className="text-center mb-3 sm:mb-6">
+              <span className="text-[9px] sm:text-[10px] font-black tracking-widest text-indigo-400 uppercase bg-indigo-500/10 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-indigo-500/20 font-mono">
                 НОВЫЙ УРОВЕНЬ ОРУЖИЯ
               </span>
-              <h2 className="text-2xl font-black text-zinc-100 mt-4 tracking-wider">ВЫБЕРИ МОДИФИКАТОР</h2>
-              <p className="text-xs text-zinc-400 mt-1 font-mono">ТЕКУЩИЙ УРОВЕНЬ: <span className="text-indigo-400 font-bold">{currentLevel}</span></p>
+              <h2 className="text-lg sm:text-2xl font-black text-zinc-100 mt-2 sm:mt-4 tracking-wider">ВЫБЕРИ МОДИФИКАТОР</h2>
+              <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 sm:mt-1 font-mono">ТЕКУЩИЙ УРОВЕНЬ: <span className="text-indigo-400 font-bold">{currentLevel}</span></p>
             </div>
 
             {/* List upgrade perks cards */}
-            <div className="flex flex-col gap-3 max-h-[45vh] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 sm:gap-3 max-h-[40dvh] sm:max-h-[45vh] overflow-y-auto pr-1">
               {currentUpgrades.map(u => {
                 const rarColor =
                   u.rar === 'Legendary'
@@ -600,33 +604,33 @@ export default function App() {
                     ? 'text-purple-400'
                     : u.rar === 'Rare'
                     ? 'text-indigo-400'
-                    : 'text-zinc-450';
+                    : 'text-zinc-400';
 
                 return (
                   <div
                     key={u.id}
                     onClick={() => handleSelectUpgrade(u)}
-                    className={`p-4 bg-zinc-950/50 border border-zinc-800/80 hover:border-indigo-500/30 rounded-xl transition duration-150 cursor-pointer text-left flex justify-between items-center group relative overflow-hidden ${
+                    className={`p-2.5 sm:p-4 bg-zinc-950/50 border border-zinc-800/80 hover:border-indigo-500/30 rounded-xl transition duration-150 cursor-pointer text-left flex justify-between items-center group relative overflow-hidden ${
                       u.synergy ? 'border-yellow-500/40 bg-gradient-to-r from-yellow-500/5 to-indigo-500/5 shadow-[0_0_12px_rgba(251,191,36,0.03)]' : ''
                     }`}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black tracking-widest uppercase font-mono ${rarColor}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`text-[8px] sm:text-[10px] font-black tracking-widest uppercase font-mono ${rarColor}`}>
                           {u.rar}
                         </span>
                         {u.synergy && (
-                          <span className="text-[10px] font-black tracking-widest uppercase text-yellow-300 bg-yellow-500/15 px-1.5 py-0.5 rounded font-mono">
-                            ЛЕГЕНДАРНАЯ СИНЕРГИЯ
+                          <span className="text-[8px] sm:text-[10px] font-black tracking-widest uppercase text-yellow-300 bg-yellow-500/15 px-1.5 py-0.5 rounded font-mono">
+                            СИНЕРГИЯ
                           </span>
                         )}
                       </div>
-                      <h3 className="text-sm font-black text-zinc-100 mt-1 group-hover:text-indigo-400 transition">
+                      <h3 className="text-xs sm:text-sm font-black text-zinc-100 mt-0.5 sm:mt-1 group-hover:text-indigo-400 transition truncate">
                         {u.name}
                       </h3>
-                      <p className="text-xs text-zinc-400 mt-1 leading-snug">{u.desc}</p>
+                      <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 leading-snug break-words">{u.desc}</p>
                     </div>
-                    <button className="ml-4 px-3.5 py-1.5 bg-zinc-800 group-hover:bg-indigo-500/20 text-zinc-300 group-hover:text-indigo-300 text-xs font-bold rounded-lg border border-zinc-700 group-hover:border-indigo-500/30 transition pointer-events-none font-mono">
+                    <button className="ml-2.5 sm:ml-4 px-2.5 py-1 sm:px-3.5 sm:py-1.5 bg-zinc-800 group-hover:bg-indigo-500/20 text-indigo-400 group-hover:text-indigo-300 text-[10px] sm:text-xs font-bold rounded-lg border border-zinc-700 group-hover:border-indigo-500/30 transition pointer-events-none font-mono flex-shrink-0">
                       ВЗЯТЬ
                     </button>
                   </div>
@@ -635,8 +639,8 @@ export default function App() {
             </div>
 
             {/* Reroll trigger options */}
-            <div className="flex justify-between items-center mt-6 pt-4 border-t border-zinc-800/60">
-              <span className="text-xs text-zinc-400 font-mono">РЕКОМПИЛИРОВАТЬ ДРЕВО</span>
+            <div className="flex justify-between items-center mt-4 sm:mt-6 pt-2 sm:pt-4 border-t border-zinc-800/60">
+              <span className="text-[10px] sm:text-xs text-zinc-400 font-mono">РЕКОМПИЛИРОВАТЬ ДРЕВО</span>
               <button
                 onClick={handleReroll}
                 disabled={rerolls <= 0}
