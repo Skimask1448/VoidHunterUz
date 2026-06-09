@@ -157,6 +157,11 @@ export interface Bullet {
   explosive: boolean;
   clusterstorm: boolean;
   ionlance: boolean;
+  plasmaTrail?: boolean;
+  gravityRocket?: boolean;
+  splitRocket?: boolean;
+  cryoRocket?: boolean;
+  railRocket?: boolean;
   critHit: boolean;
   _dead?: boolean;
   _hit?: Set<Enemy>;

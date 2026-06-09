@@ -375,6 +375,218 @@ const PASSIVES_META: CardMeta[] = [
 
 export const UPGRADES: Upgrade[] = [];
 
+const ROCKET_MUTATIONS: Upgrade[] = [
+  {
+    id: 'rocket_homing',
+    name: 'Грави-Наведение Ракет',
+    rar: 'Rare',
+    desc: 'Базовые ракеты получают самонаведение по ближайшей цели и поворачивают к врагам в полете.',
+    onceTag: 'homing',
+    requires: [],
+    w: p => p.tags.has('homing') ? 0 : 7,
+    apply: p => {
+      p.tags.add('homing');
+      p.bulletSpeed += spd(0.35);
+    }
+  },
+  {
+    id: 'rocket_antimatter',
+    name: 'Антиматерийная БЧ',
+    rar: 'Rare',
+    desc: 'Ракеты взрываются при попадании, оставляя яркую космическую ударную волну по области.',
+    onceTag: 'explosive',
+    requires: [],
+    w: p => p.tags.has('explosive') ? 0 : 7,
+    apply: p => {
+      p.tags.add('explosive');
+      p.explosionRadius = Math.max(p.explosionRadius || 0, spd(48));
+      p.explosionDmg = Math.max(p.explosionDmg || 0, 0.58);
+      p.bulletSize += spd(0.45);
+    }
+  },
+  {
+    id: 'rocket_fan',
+    name: 'Веерный Пуск',
+    rar: 'Common',
+    desc: 'Основное оружие выпускает три ракеты широким космическим веером.',
+    onceTag: 'multishot',
+    requires: [],
+    w: p => p.tags.has('multishot') ? 0 : 7,
+    apply: p => {
+      p.tags.add('multishot');
+      p.shootRate = Math.max(8, p.shootRate + 2);
+    }
+  },
+  {
+    id: 'rocket_duplicator',
+    name: 'Пакетный Старт',
+    rar: 'Common',
+    desc: '+2 дополнительные ракеты в очереди основного оружия.',
+    onceTag: 'rocket_pack_start',
+    requires: [],
+    w: p => p.tags.has('rocket_pack_start') ? 0 : 6,
+    apply: p => {
+      p.tags.add('rocket_pack_start');
+      p.extraShots += 2;
+      p.shootRate = Math.max(8, p.shootRate + 1);
+    }
+  },
+  {
+    id: 'rocket_rail',
+    name: 'Рельсовый Ускоритель',
+    rar: 'Epic',
+    desc: 'Ракеты превращаются в длинные рельсовые снаряды: выше скорость, пробитие и бело-синий след.',
+    onceTag: 'rail_rockets',
+    requires: [],
+    w: p => p.tags.has('rail_rockets') ? 0 : 5,
+    apply: p => {
+      p.tags.add('rail_rockets');
+      p.bulletSpeed += spd(1.6);
+      p.pierce += 2;
+      p.damage += 0.18;
+    }
+  },
+  {
+    id: 'rocket_chain',
+    name: 'Ионная Катушка',
+    rar: 'Rare',
+    desc: 'Попадания ракет выпускают цепные электрические дуги к соседним целям.',
+    onceTag: 'rocket_chain_coil',
+    requires: [],
+    w: p => p.tags.has('rocket_chain_coil') ? 0 : 6,
+    apply: p => {
+      p.tags.add('rocket_chain_coil');
+      p.chain += 1;
+    }
+  },
+  {
+    id: 'rocket_ricochet',
+    name: 'Матрица Рикошета',
+    rar: 'Rare',
+    desc: 'Ракеты отскакивают от целей и рассыпают управляемые осколки.',
+    onceTag: 'rocket_ricochet_matrix',
+    requires: [],
+    w: p => p.tags.has('rocket_ricochet_matrix') ? 0 : 6,
+    apply: p => {
+      p.tags.add('rocket_ricochet_matrix');
+      p.ricochet += 2;
+    }
+  },
+  {
+    id: 'rocket_plasma_trail',
+    name: 'Плазменный Хвост',
+    rar: 'Rare',
+    desc: 'Ракеты оставляют горячий плазменный след, который прожигает врагов позади траектории.',
+    onceTag: 'plasma_trail',
+    requires: [],
+    w: p => p.tags.has('plasma_trail') ? 0 : 6,
+    apply: p => {
+      p.tags.add('plasma_trail');
+      p.damage += 0.12;
+    }
+  },
+  {
+    id: 'rocket_gravity_warhead',
+    name: 'Грави-Боеголовка',
+    rar: 'Epic',
+    desc: 'Ракеты тянут ближайших врагов к траектории полета и слегка стягивают их в точку удара.',
+    onceTag: 'gravity_rockets',
+    requires: [],
+    w: p => p.tags.has('gravity_rockets') ? 0 : 5,
+    apply: p => {
+      p.tags.add('gravity_rockets');
+      p.bulletSize += spd(0.35);
+    }
+  },
+  {
+    id: 'rocket_splitter',
+    name: 'Разделяющиеся Ракеты',
+    rar: 'Epic',
+    desc: 'При первом попадании ракета распадается на три малых фотонных снаряда.',
+    onceTag: 'split_rockets',
+    requires: [],
+    w: p => p.tags.has('split_rockets') ? 0 : 5,
+    apply: p => {
+      p.tags.add('split_rockets');
+      p.damage += 0.1;
+    }
+  },
+  {
+    id: 'rocket_cryo_core',
+    name: 'Крио-Ядро',
+    rar: 'Rare',
+    desc: 'Ракеты получают голубое крио-ядро и на короткое время замораживают поврежденные цели.',
+    onceTag: 'cryo_rockets',
+    requires: [],
+    w: p => p.tags.has('cryo_rockets') ? 0 : 6,
+    apply: p => {
+      p.tags.add('cryo_rockets');
+      p.freeze = Math.max(p.freeze, 0.25);
+    }
+  },
+  {
+    id: 'rocket_orbital_laser',
+    name: 'Орбитальный Целеуказатель',
+    rar: 'Epic',
+    desc: 'Открывает периодический лазерный залп по ближайшим целям, синхронизированный с ракетным компьютером.',
+    onceTag: 'laser',
+    requires: [],
+    w: p => p.tags.has('laser') ? 0 : 5,
+    apply: p => {
+      p.tags.add('laser');
+      p.laserStacks = Math.max(p.laserStacks || 1, 1);
+      p.laserCd = 60;
+    }
+  },
+  {
+    id: 'syn_clusterstorm',
+    name: 'Кластерный Шторм',
+    rar: 'Legendary',
+    desc: 'Синергия ракет: Антиматерийная БЧ + Веерный Пуск. Взрывы распадаются на шесть малых плазменных снарядов.',
+    synergy: true,
+    onceTag: 'clusterstorm',
+    requires: [needTag('explosive'), needTag('multishot')],
+    w: p => (p.tags.has('explosive') && p.tags.has('multishot') && !p.tags.has('clusterstorm')) ? 10 : 0,
+    apply: p => {
+      p.tags.add('clusterstorm');
+      p.explosionRadius = Math.max(p.explosionRadius || 0, spd(70));
+      p.explosionDmg = Math.max(p.explosionDmg || 0, 0.82);
+      p.bulletSize += spd(0.8);
+    }
+  },
+  {
+    id: 'syn_ionlance',
+    name: 'Ионное Копье',
+    rar: 'Legendary',
+    desc: 'Синергия ракет: Грави-Наведение + Рельсовый Ускоритель. За ракетой тянется разрушительный ионный луч.',
+    synergy: true,
+    onceTag: 'ionlance',
+    requires: [needTag('homing'), needTag('rail_rockets')],
+    w: p => (p.tags.has('homing') && p.tags.has('rail_rockets') && !p.tags.has('ionlance')) ? 10 : 0,
+    apply: p => {
+      p.tags.add('ionlance');
+      p.pierce += 2;
+      p.bulletSpeed += spd(0.9);
+      p.damage += 0.22;
+    }
+  },
+  {
+    id: 'syn_gravity_storm',
+    name: 'Сингулярный Залп',
+    rar: 'Legendary',
+    desc: 'Синергия ракет: Грави-Боеголовка + Разделяющиеся Ракеты. Осколки получают притяжение и стягивают врагов в мини-сингулярности.',
+    synergy: true,
+    onceTag: 'singularity_rockets',
+    requires: [needTag('gravity_rockets'), needTag('split_rockets')],
+    w: p => (p.tags.has('gravity_rockets') && p.tags.has('split_rockets') && !p.tags.has('singularity_rockets')) ? 10 : 0,
+    apply: p => {
+      p.tags.add('singularity_rockets');
+      p.bulletSize += spd(0.6);
+      p.damage += 0.18;
+    }
+  }
+];
+
 // Programmatically fill levels 1-5 for weapons and passives
 function populateUpgrades() {
   const allMeta = [...WEAPONS_META, ...PASSIVES_META];
@@ -551,6 +763,7 @@ const SYNERGIES: Upgrade[] = [
 
 // Populate and add synergies
 populateUpgrades();
+UPGRADES.push(...ROCKET_MUTATIONS);
 UPGRADES.push(...SYNERGIES);
 
 export function weightedPick(pool: any[]): any {

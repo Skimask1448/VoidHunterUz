@@ -494,12 +494,18 @@ export default function GameCanvas({
       const critHit = Math.random() < p.critChance;
       const critMult = critHit ? p.critDmg : 1;
       
-      const bColor = p.tags.has('ionlance') 
-        ? '#c4b5fd' 
-        : p.tags.has('cryotoxin') 
-        ? '#34d399' 
-        : p.tags.has('clusterstorm') 
-        ? '#ffb020' 
+      const bColor = p.tags.has('ionlance')
+        ? '#c4b5fd'
+        : p.tags.has('rail_rockets')
+        ? '#e0f2fe'
+        : p.tags.has('cryo_rockets')
+        ? '#67e8f9'
+        : p.tags.has('plasma_trail')
+        ? '#f472b6'
+        : p.tags.has('gravity_rockets')
+        ? '#a78bfa'
+        : p.tags.has('clusterstorm')
+        ? '#ffb020'
         : p.col;
 
       const bullet: Bullet = {
@@ -517,6 +523,11 @@ export default function GameCanvas({
         explosive: p.tags.has('explosive'),
         clusterstorm: p.tags.has('clusterstorm'),
         ionlance: p.tags.has('ionlance'),
+        plasmaTrail: p.tags.has('plasma_trail'),
+        gravityRocket: p.tags.has('gravity_rockets') || p.tags.has('singularity_rockets'),
+        splitRocket: p.tags.has('split_rockets') || p.tags.has('singularity_rockets'),
+        cryoRocket: p.tags.has('cryo_rockets'),
+        railRocket: p.tags.has('rail_rockets'),
         critHit,
         skinId: selectedRocketSkin, // Current rocket skin assigned here!
         trail: [],
@@ -1237,6 +1248,44 @@ export default function GameCanvas({
           r: Math.random() * 4 + 3,
           fade: true,
         });
+      }
+
+      if (b.plasmaTrail && b.smokeTimer % 3 === 0) {
+        G.current.particles.push({
+          x: b.x - Math.cos(b.angle || 0) * 12,
+          y: b.y - Math.sin(b.angle || 0) * 12,
+          vx: rnd(-0.35, 0.35),
+          vy: rnd(-0.35, 0.35),
+          life: 0.55,
+          col: 'rgba(244, 114, 182, 0.55)',
+          r: rnd(5, 10),
+          type: 'smoke',
+          growth: 0.2,
+          friction: 0.96,
+        });
+
+        for (const e of G.current.enemies) {
+          if (e.hp <= 0) continue;
+          if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + spd(22)) {
+            const trailDmg = b.dmg * 0.12;
+            e.hp -= trailDmg;
+            G.current.totalDamage += trailDmg;
+          }
+        }
+      }
+
+      if (b.gravityRocket) {
+        const pullRange = spd(p.tags.has('singularity_rockets') ? 100 : 72);
+        for (const e of G.current.enemies) {
+          if (e.hp <= 0) continue;
+          const d = Math.hypot(e.x - b.x, e.y - b.y);
+          if (d > 1 && d < pullRange) {
+            const pull = (1 - d / pullRange) * (p.tags.has('singularity_rockets') ? 1.65 : 1.05);
+            const a = Math.atan2(b.y - e.y, b.x - e.x);
+            e.x += Math.cos(a) * pull;
+            e.y += Math.sin(a) * pull;
+          }
+        }
       }
 
       if (b._crossState) {
