@@ -72,6 +72,20 @@ export interface Player {
   laserCd?: number;
   tags: Set<string>;
   trail: { x: number; y: number }[];
+  garlicCd?: number;
+  bibleAngle?: number;
+  bibleCd?: number;
+  waterCd?: number;
+  lightningCd?: number;
+  crossCd?: number;
+  scytheCd?: number;
+  daggerCd?: number;
+  manaCd?: number;
+  lancetCd?: number;
+  laurelShields?: number;
+  laurelMax?: number;
+  laurelCd?: number;
+  laurelCdMax?: number;
 }
 
 export type EnemyType =
@@ -154,6 +168,13 @@ export interface Bullet {
   trail: { x: number; y: number; life: number }[];
   smokeTimer?: number;
   angle?: number;
+  _targetY?: number;
+  _waterPool?: boolean;
+  _crossState?: 'forward' | 'returning';
+  _crossTimer?: number;
+  _crossVx?: number;
+  _crossVy?: number;
+  weaponKind?: 'cross' | 'sword' | 'scythe' | 'dagger' | 'shroud';
 }
 
 export interface EnemyBullet {
@@ -282,4 +303,7 @@ export interface GameState {
   deflectorCd?: number;
   deflectorAngle?: number;
   singularities?: { x: number; y: number; life: number; r: number }[];
+  waterPools?: { x: number; y: number; life: number; r: number; dmg: number; evolved: boolean }[];
+  manaPillars?: { x: number; y: number; life: number; w: number; col: string }[];
+  lancetBeams?: { x: number; y: number; ang: number; life: number; width: number; evolved: boolean }[];
 }

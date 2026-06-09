@@ -13,740 +13,545 @@ export function spd(v: number): number {
   return v;
 }
 
-const hasTag = (p: Player, tag: string) => p.tags && p.tags.has(tag);
-const synergyReady = (p: Player, checks: ((p: Player) => boolean)[]) => checks.every(check => check(p));
-const needTag = (tag: string) => (p: Player) => hasTag(p, tag);
-const needStat = (key: keyof Player, min = 1) => (p: Player) => {
-  const val = p[key];
-  if (typeof val === 'number') {
-    return val >= min;
+// Check level of a weapon or passive based on player tags
+export function getWeaponLevel(p: Player, prefix: string): number {
+  if (p.tags.has(`syn_${prefix}`)) return 6; // Synergy acts as level 6 (max/evolved)
+  for (let i = 5; i >= 1; i--) {
+    if (p.tags.has(`${prefix}_${i}`)) return i;
   }
-  return false;
-};
+  return 0;
+}
 
-export const UPGRADES: Upgrade[] = [
-  // DAMAGE
-  {
-    id: 'dmg1',
-    name: 'Усиленные патроны',
-    rar: 'Common',
-    desc: 'Увеличивает базовый урон ракет.',
-    w: p => 8 + (p.damage < 2 ? 4 : 0),
-    apply: p => {
-      p.damage += 0.4;
-    }
-  },
-  {
-    id: 'dmg2',
-    name: 'Бронебойный заряд',
-    rar: 'Rare',
-    desc: 'Увеличивает размер ракет и значительно повышает урон.',
-    w: p => 4 + (p.bulletSize < 7 ? 3 : 0),
-    apply: p => {
-      p.damage += 0.7;
-      p.bulletSize += 1.2;
-    }
-  },
-  {
-    id: 'crit',
-    name: 'Прицел охотника',
-    rar: 'Rare',
-    desc: '+15% шанс критического удара.',
-    w: p => 5 + (p.critChance < 0.3 ? 4 : 0),
-    apply: p => {
-      p.critChance = Math.min(0.5, p.critChance + 0.15);
-    }
-  },
-  {
-    id: 'critdmg',
-    name: 'Смертельный удар',
-    rar: 'Epic',
-    desc: 'Увеличивает множитель критического урона на +0.4.',
-    w: p => 3 + (p.critDmg < 2.5 ? 4 : 0),
-    apply: p => {
-      p.critDmg += 0.4;
-    }
-  },
+const needTag = (tag: string) => (p: Player) => p.tags.has(tag);
+const synergyReady = (p: Player, checks: ((p: Player) => boolean)[]) => checks.every(check => check(p));
 
-  // Projectile Modifiers
-  {
-    id: 'pierce',
-    name: 'Сквозной выстрел',
-    rar: 'Rare',
-    desc: 'Ракеты пробивают +1 врага насквозь.',
-    w: p => 5 + (p.pierce < 2 ? 5 : 0),
-    apply: p => {
-      p.pierce = Math.min(5, p.pierce + 1);
-    }
-  },
-  {
-    id: 'ricochet',
-    name: 'Рикошет',
-    rar: 'Legendary',
-    desc: 'Ракеты рикошетят к следующему врагу при попадании. +1 рикошет.',
-    w: p => 2 + (p.ricochet < 1 ? 6 : 0),
-    apply: p => {
-      p.ricochet = Math.min(5, p.ricochet + 1);
-    }
-  },
-  {
-    id: 'extrashot',
-    name: 'Мультивыстрел',
-    rar: 'Rare',
-    desc: '+1 ракета в залпе. Запускаются очередью одна за другой.',
-    w: p => 5 + (p.extraShots < 2 ? 6 : 0),
-    apply: p => {
-      p.extraShots = Math.min(3, p.extraShots + 1);
-    }
-  },
-  {
-    id: 'rapid',
-    name: 'Шквальный огонь',
-    rar: 'Common',
-    desc: 'Значительно повышает скорость запуска, снижая урон на 5%.',
-    w: p => 8 + (p.shootRate > 10 ? 5 : 0),
-    apply: p => {
-      p.shootRate = Math.max(6, p.shootRate - 2);
-      p.damage = Math.max(0.5, p.damage * 0.95);
-    }
-  },
-  {
-    id: 'bspeed',
-    name: 'Турбо-нагнетатель',
-    rar: 'Common',
-    desc: 'Увеличивает скорость полета ракет.',
-    w: p => 7 + (p.bulletSpeed < spd(6) ? 5 : 0),
-    apply: p => {
-      p.bulletSpeed = Math.min(spd(9), p.bulletSpeed + spd(1.2));
-    }
-  },
-  {
-    id: 'sniper',
-    name: 'Снайперская боеголовка',
-    rar: 'Rare',
-    desc: '+урон, +скорость полета ракет и +1 пробитие.',
-    w: p => 4 + (p.bulletSpeed < spd(7) ? 3 : 0),
-    apply: p => {
-      p.damage += 0.5;
-      p.bulletSpeed += spd(1.5);
-      p.pierce = Math.min(5, p.pierce + 1);
-    }
-  },
-  {
-    id: 'laser',
-    name: 'Вспомогательный лазер',
-    rar: 'Epic',
-    desc: 'Каждые 3 сек прожигает мощный луч сквозь врагов. Максимум 4 стака.',
-    w: p => 4 + ((p.laserStacks || 0) < 4 ? 6 : 0),
-    apply: p => {
-      if ((p.laserStacks || 0) < 4) {
-        p.laserStacks = (p.laserStacks || 0) + 1;
-        p.tags.add('laser');
-        p.laserCd = 0;
-      }
-    }
-  },
+// Definitions for programmatically generating level 1-5 cards
+interface CardMeta {
+  id: string;
+  name: string;
+  descriptions: string[];
+  rarity: ('Common' | 'Rare' | 'Epic' | 'Legendary')[];
+  applyEffect: (p: Player, lv: number) => void;
+}
 
-  // SPEED / SURVIVAL
+const WEAPONS_META: CardMeta[] = [
   {
-    id: 'speed',
-    name: 'Форсажные двигатели',
-    rar: 'Common',
-    desc: '+0.5 к скорости передвижения корабля.',
-    w: p => 7 + (p.moveSpeed < 5 ? 3 : 0),
-    apply: p => {
-      p.moveSpeed = Math.min(spd(6), p.moveSpeed + spd(0.5));
+    id: 'garlic',
+    name: 'Грави-Аура',
+    descriptions: [
+      'Разворачивает вокруг корабля кольцо искривленного пространства, наносящее периодический урон.',
+      '+20% к радиусу грави-поля и +25% к его урону.',
+      'Пульсации учащаются, поле испускает яркие гравитационные волны.',
+      '+20% к радиусу грави-поля и +30% к его урону.',
+      'Поле замедляет и отталкивает врагов на краю сингулярной зоны.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('garlic');
+      if (lv === 1) p.garlicCd = 0;
     }
   },
   {
-    id: 'hp',
-    name: 'Тяжёлая нано-броня',
-    rar: 'Common',
-    desc: 'Повышает максимальную прочность корпуса на +30 HP.',
-    w: p => 7 + (p.hp < 60 ? 6 : 0),
-    apply: p => {
-      p.maxHp += 30;
-      p.hp = Math.min(p.maxHp, p.hp + 30);
-    }
-  },
-  {
-    id: 'regen',
-    name: 'Авто-ремонтный дроид',
-    rar: 'Rare',
-    desc: 'Медленно восстанавливает 3 HP каждые 3 секунды. Стак х3.',
-    w: p => 4 + (p.regenLv < 1 ? 5 : 0),
-    apply: p => {
-      p.regenLv = Math.min(3, p.regenLv + 1);
-    }
-  },
-  {
-    id: 'shield',
-    name: 'Энергетический щит',
-    rar: 'Epic',
-    desc: 'Добавляет щит, полностью блокирующий один удар. Восстанавливается вне боя.',
-    w: p => 3 + (p.maxShield < 2 ? 5 : 0),
-    apply: p => {
-      p.maxShield += 1;
-      p.shield = Math.min(p.maxShield, p.shield + 1);
-    }
-  },
-  {
-    id: 'lifesteal',
-    name: 'Нано-паразит',
-    rar: 'Epic',
-    desc: 'Преобразует 8% нанесённого ракетами урона в прочность обшивки.',
-    w: p => 3 + (p.lifesteal < 1 ? 5 : 0),
-    apply: p => {
-      p.lifesteal = Math.min(2, p.lifesteal + 1);
-    }
-  },
-  {
-    id: 'dodge',
-    name: 'Маневры уклонения',
-    rar: 'Rare',
-    desc: '+20% шанс полностью уклониться от урона.',
-    w: p => 4 + (p.dodge < 0.4 ? 4 : 0),
-    apply: p => {
-      p.dodge = Math.min(0.6, p.dodge + 0.2);
-    }
-  },
-  {
-    id: 'armor',
-    name: 'Силовое поле',
-    rar: 'Rare',
-    desc: '+20% поглощение входящего урона.',
-    w: p => 4 + (p.armor < 0.4 ? 4 : 0),
-    apply: p => {
-      p.armor = Math.min(0.5, p.armor + 0.2);
-    }
-  },
-
-  // SPECIAL WEAPONS
-  {
-    id: 'freeze',
-    name: 'Криогенная БЧ',
-    rar: 'Rare',
-    desc: 'Ракеты получают 35% шанс заморозить врагов на 1.3 секунды.',
-    w: p => 4 + (!p.tags.has('freeze') ? 5 : 0),
-    apply: p => {
-      p.freeze = 0.35;
-      p.tags.add('freeze');
-    }
-  },
-  {
-    id: 'poison',
-    name: 'Кислотный катализатор',
-    rar: 'Rare',
-    desc: 'Ракеты отравляют врагов, нанося периодический урон.',
-    w: p => 4 + (p.poison < 1 ? 5 : 0),
-    apply: p => {
-      p.poison = Math.min(1, p.poison + 0.4);
-      p.poisonDmg = 0.3;
-    }
-  },
-  {
-    id: 'aura',
-    name: 'Термоядерная аура',
-    rar: 'Epic',
-    desc: 'Выжигает радиацией всех врагов поблизости. Каждый стак увеличивает радиус.',
-    w: p => 3 + (p.aura < 1 ? 5 : 0),
-    apply: p => {
-      p.auraStacks = (p.auraStacks || 0) + 1;
-      p.aura = Math.floor(30 * Math.pow(1.15, p.auraStacks));
-      p.auraDmg = (p.auraDmg || 0.1) + 0.05;
-    }
-  },
-  {
-    id: 'drone',
-    name: 'Дрон-истребитель',
-    rar: 'Epic',
-    desc: 'Выпускает автономного спутника, летающего рядом и помогающего вести огонь.',
-    w: p => 3 + (p.drone < 2 ? 5 : 0),
-    apply: p => {
-      p.drone = Math.min(3, p.drone + 1);
-    }
-  },
-  {
-    id: 'pickup',
-    name: 'Грави-магнит',
-    rar: 'Common',
-    desc: 'Притягивает кристаллы опыта и кредиты с огромного расстояния.',
-    w: p => 6 + ((p.magnetRange || 0) < 3 ? 5 : 0),
-    apply: p => {
-      if ((p.magnetRange || 0) < 3) {
-        p.pickupRange = Math.min(180, p.pickupRange + 40);
-        p.magnetRange = (p.magnetRange || 0) + 1;
+    id: 'bible',
+    name: 'Орбитальные Реликты',
+    descriptions: [
+      'Запускает один древний орбитальный модуль, вращающийся вокруг корабля.',
+      'Добавляет второй модуль, скорость вращения увеличена на 15%.',
+      'Добавляет третий модуль, каждый оставляет ионный шлейф.',
+      '+30% к урону орбитальных модулей.',
+      'Добавляет четвертый модуль, радиус орбиты динамически меняется.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('bible');
+      if (lv === 1) {
+        p.bibleAngle = 0;
+        p.bibleCd = 0;
       }
     }
   },
   {
-    id: 'xpboost',
-    name: 'Сенсоры сканирования',
-    rar: 'Common',
-    desc: 'Увеличивает весь получаемый опыт на +30%.',
-    w: p => 6 + (p.xpGain < 1.5 ? 4 : 0),
-    apply: p => {
-      p.xpGain = Math.min(2, p.xpGain + 0.3);
+    id: 'water',
+    name: 'Плазменный Конденсат',
+    descriptions: [
+      'Сбрасывает с орбиты сгусток плазмы, создающий нестабильную зону прожига.',
+      'Сбрасывает два сгустка за раз. +20% к радиусу плазменной зоны.',
+      'Время существования зоны увеличено на 50%.',
+      'Сбрасывает три сгустка за раз. +30% к урону плазмы.',
+      'Плазма переходит в синий режим сверхнагрева и замедляет врагов.'
+    ],
+    rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('water');
+      if (lv === 1) p.waterCd = 0;
     }
   },
   {
-    id: 'economy',
-    name: 'Грузовой захват',
-    rar: 'Rare',
-    desc: 'Увеличивает сбор кредитных чипов за убийство врагов на +40%.',
-    w: p => 4 + (p.creditGain < 1.5 ? 4 : 0),
-    apply: p => {
-      p.creditGain = Math.min(2.5, p.creditGain + 0.4);
+    id: 'lightning',
+    name: 'Ионный Разрядник',
+    descriptions: [
+      'Поражает случайного врага на экране мощным ионным разрядом.',
+      '+20% к урону разряда. Бьет двух врагов одновременно.',
+      'Разряд перегружает цель и перескакивает на соседний корпус.',
+      'Интервал ударов снижен до 1.5 секунд. Бьет трех врагов.',
+      'Разряды оставляют короткое электромагнитное поле в точке удара.'
+    ],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    applyEffect: (p, lv) => {
+      p.tags.add('lightning');
+      if (lv === 1) p.lightningCd = 0;
     }
   },
   {
-    id: 'chain',
-    name: 'Молния перегрузки',
-    rar: 'Epic',
-    desc: 'Энергетические разряды цепляют соседних врагов.',
-    w: p => 3 + (p.chain < 1 ? 5 : 0),
-    apply: p => {
-      p.chain = Math.min(2, p.chain + 1);
+    id: 'cross',
+    name: 'Фотонный Бумеранг',
+    descriptions: [
+      'Запускает вперед вращающийся фотонный клинок, который затем возвращается обратно.',
+      'Запускает два бумеранга. +20% к урону.',
+      'Бумеранги пробивают врагов насквозь (+2 пробития) и увеличиваются в размере.',
+      'Запускает три бумеранга веером.',
+      'Скорость вращения увеличена на 50%, дальность полета +40%.'
+    ],
+    rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('cross');
+      if (lv === 1) p.crossCd = 0;
     }
   },
   {
-    id: 'glasscannon',
-    name: 'Стеклянная пушка',
-    rar: 'Legendary',
-    desc: '+60% к урону пушек, но снижает максимальное здоровье корабля на -30%.',
-    w: p => 1 + (!p.tags.has('glass') ? 4 : 0),
-    apply: p => {
-      p.damage *= 1.6;
-      p.maxHp = Math.max(50, Math.floor(p.maxHp * 0.7));
-      p.hp = Math.min(p.hp, p.maxHp);
-      p.tags.add('glass');
+    id: 'scythe',
+    name: 'Плазменная Коса',
+    descriptions: [
+      'Запускает плазменную косу по дуге, которая летит сквозь всех врагов.',
+      'Запускает две косы. Размер косы увеличен на 25%.',
+      'Урон увеличен на 30%. Коса пробивает абсолютно всех врагов.',
+      'Запускает три косы.',
+      'Перезарядка косы снижена на 30%.'
+    ],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    applyEffect: (p, lv) => {
+      p.tags.add('scythe');
+      if (lv === 1) p.scytheCd = 0;
     }
   },
+  {
+    id: 'dagger',
+    name: 'Вихрь Клинков',
+    descriptions: [
+      'Выпускает очередь из 3 скоростных энерго-клинков в направлении носа.',
+      'Очередь увеличена до 5 клинков, скорость их полета +20%.',
+      'Клинки получают +1 пробитие. +30% к урону.',
+      'Очередь увеличена до 6 клинков.',
+      'Интервал между очередями снижен на 40%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('dagger');
+      if (lv === 1) p.daggerCd = 0;
+    }
+  },
+  {
+    id: 'mana',
+    name: 'Космический Столб',
+    descriptions: [
+      'Периодически призывает столб космической пыли, проходящий по всей высоте экрана.',
+      'Ширина столба увеличена на 30%, урон +20%.',
+      'Перезарядка снижена до 3 сек. Столб накладывает на врагов замедление.',
+      'Ширина столба увеличена на 25%, урон +30%.',
+      'Столб испускает вторичные волны, аннигилируя снаряды врагов.'
+    ],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    applyEffect: (p, lv) => {
+      p.tags.add('mana');
+      if (lv === 1) p.manaCd = 0;
+    }
+  },
+  {
+    id: 'lancet',
+    name: 'Хроно-Ланцет',
+    descriptions: [
+      'Выпускает временной луч, замораживающий врагов на 1.5 секунды.',
+      'Выпускает два луча в противоположных направлениях. Заморозка на 2 сек.',
+      'Время заморозки увеличено до 3 секунд.',
+      'Лучи становятся шире на 25%. Перезарядка снижена на 25%.',
+      'Замороженные лучами враги временно получают на 15% больше урона.'
+    ],
+    rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('lancet');
+      if (lv === 1) p.lancetCd = 0;
+    }
+  },
+  {
+    id: 'laurel',
+    name: 'Барьер Эгиды',
+    descriptions: [
+      'Создает щит, полностью блокирующий один любой удар. Перезарядка 15 сек.',
+      'Перезарядка барьера снижена до 12 секунд.',
+      'Барьер может накапливать до 2 зарядов блокировки.',
+      'Перезарядка барьера снижена до 9 секунд.',
+      'При разрушении барьера испускается волна, отбрасывающая врагов.'
+    ],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    applyEffect: (p, lv) => {
+      p.tags.add('laurel');
+      if (lv === 1) {
+        p.laurelShields = 1;
+        p.laurelMax = 1;
+        p.laurelCd = 0;
+        p.laurelCdMax = 900;
+      }
+    }
+  }
+];
 
-  // Projectiles
+const PASSIVES_META: CardMeta[] = [
   {
-    id: 'explosive',
-    name: 'Осколочно-фугасная БЧ',
-    rar: 'Epic',
-    desc: 'Ракеты детонируют при ударе, нанося мощный урон по площади.',
-    w: p => 3 + (!p.tags.has('explosive') ? 5 : 0),
-    apply: p => {
-      p.tags.add('explosive');
-      p.explosionRadius = spd(40);
-      p.explosionDmg = 0.5;
-    }
-  },
-  {
-    id: 'berserker',
-    name: 'Ярость берсерка',
-    rar: 'Rare',
-    desc: '+20% урона и скорострельности при прочности пробитой ниже 50%.',
-    w: p => 4 + (!p.tags.has('berserker') ? 5 : 0),
-    apply: p => {
-      p.tags.add('berserker');
-    }
-  },
-  {
-    id: 'orbital',
-    name: 'Гонитель астероидов',
-    rar: 'Epic',
-    desc: 'Орбитальные плазменные мины вращаются вокруг корпуса и таранят цели.',
-    w: p => 3 + (p.orbital < 3 ? 5 : 0),
-    apply: p => {
-      p.orbital = Math.min(3, p.orbital + 1);
-    }
-  },
-  {
-    id: 'homing',
-    name: 'Тепловой искатель',
-    rar: 'Rare',
-    desc: 'Ракеты автоматически доворачивают в сторону ближайших угроз.',
-    w: p => 4 + (!p.tags.has('homing') ? 5 : 0),
-    apply: p => {
-      p.tags.add('homing');
-    }
-  },
-  {
-    id: 'multishot',
-    name: 'Веерный залп',
-    rar: 'Epic',
-    desc: 'Корабль разом запускает веер из 3 ракет под углом.',
-    w: p => 3 + (!p.tags.has('multishot') ? 6 : 0),
-    apply: p => {
-      p.tags.add('multishot');
-    }
-  },
-  {
-    id: 'adrenaline',
-    name: 'Инъекция адреналина',
-    rar: 'Rare',
-    desc: 'При получении урона дает +30% к скорости полета и маневренности на 3 сек.',
-    w: p => 4 + (!p.tags.has('adrenaline') ? 5 : 0),
-    apply: p => {
-      p.tags.add('adrenaline');
-    }
-  },
-  {
-    id: 'secondwind',
-    name: 'Резервное питание',
-    rar: 'Legendary',
-    desc: 'При критическом разрушении восстанавливает 50% обшивки один раз за вылет.',
-    w: p => 2 + (!p.tags.has('secondwind') ? 6 : 0),
-    apply: p => {
-      p.tags.add('secondwind');
-    }
-  },
-  {
-    id: 'deflector',
-    name: 'Орбитальный Дефлектор',
-    rar: 'Epic',
-    desc: 'Электрический защитный дрон кружит по орбите. Раз в 4 сек блокирует лазеры/снаряды врагов, либо разряжается электродугой в ближних врагов.',
-    w: p => 4 + (!p.tags.has('deflector') ? 5 : 0),
-    apply: p => {
-      p.tags.add('deflector');
-    }
-  },
-  {
-    id: 'vortex_pull',
-    name: 'Гравитационная Сингулярность',
-    rar: 'Epic',
-    desc: 'Каждое критическое уничтожение элитного врага открывает черную дыру на 2.5 сек, которая втягивает врагов и чипы, нанося урон по площади.',
-    w: p => 4 + (!p.tags.has('vortex_pull') ? 5 : 0),
-    apply: p => {
-      p.tags.add('vortex_pull');
-    }
-  },
-  {
-    id: 'frostnova',
-    name: 'Ледяная Сверхновая',
-    rar: 'Rare',
-    desc: 'При полной потере силового щита испускает мощную криогенную волну, замораживающую врагов на экране на 3 сек и уничтожающую снаряды.',
-    requires: [needStat('maxShield', 1)],
-    w: p => (p.maxShield > 0 && !p.tags.has('frostnova')) ? 5 : 0,
-    apply: p => {
-      p.tags.add('frostnova');
-    }
-  },
-  {
-    id: 'nanite_repair',
-    name: 'Нанитовый Рем-Рой',
-    rar: 'Rare',
-    desc: 'Пассивные медицинские нано-боты восстанавливают прочность обшивки при подборе кредитов, когда у вас критическое здоровье (ниже 30% HP).',
-    w: p => 5 + (!p.tags.has('nanite_repair') ? 5 : 0),
-    apply: p => {
-      p.tags.add('nanite_repair');
-    }
-  },
-
-  // ── LEGENDARY SYNERGIES (Combining Perks) ──
-  {
-    id: 'nova_radiance',
-    name: 'Светоносная Сверхновая',
-    rar: 'Legendary',
-    desc: 'Синергия: Ледяная Сверхновая + Лазер/Аура. При взрыве сверхновой замороженные враги выгорают от ослепительной тепловой плазмы.',
-    synergy: true,
-    onceTag: 'nova_radiance',
-    requires: [needTag('frostnova'), p => hasTag(p, 'laser') || (p.aura || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('frostnova'), p => hasTag(p, 'laser') || (p.aura || 0) > 0]) &&
-      !hasTag(p, 'nova_radiance')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('nova_radiance');
+    id: 'spinach',
+    name: 'Звездный Катализатор',
+    descriptions: [
+      'Увеличивает весь наносимый урон на +10%.',
+      'Увеличивает весь наносимый урон на +20%.',
+      'Увеличивает весь наносимый урон на +30%.',
+      'Увеличивает весь наносимый урон на +40%.',
+      'Увеличивает весь наносимый урон на +50%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_spinach');
       p.damage += 0.15;
     }
   },
   {
-    id: 'singularity_collapse',
-    name: 'Абсолютный Коллапс',
-    rar: 'Legendary',
-    desc: 'Синергия: Гравитационная Сингулярность + Фугас/Молния. Схлопывание черной дыры запускает мощнейшую круговую цепь молний по стянутым врагам.',
-    synergy: true,
-    onceTag: 'singularity_collapse',
-    requires: [needTag('vortex_pull'), p => hasTag(p, 'explosive') || (p.chain || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('vortex_pull'), p => hasTag(p, 'explosive') || (p.chain || 0) > 0]) &&
-      !hasTag(p, 'singularity_collapse')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('singularity_collapse');
-      p.explosionRadius = Math.max(p.explosionRadius || 0, spd(50));
+    id: 'armor',
+    name: 'Нейтронная Броня',
+    descriptions: [
+      'Снижает получаемый урон на 8% и добавляет +15 к макс. прочности.',
+      'Снижает получаемый урон на 16% и добавляет +30 к макс. прочности.',
+      'Снижает получаемый урон на 24% и добавляет +45 к макс. прочности.',
+      'Снижает получаемый урон на 32% и добавляет +60 к макс. прочности.',
+      'Снижает получаемый урон на 40% и добавляет +80 к макс. прочности.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_armor');
+      p.armor = Math.min(0.5, p.armor + 0.08);
+      p.maxHp += 15;
+      p.hp = Math.min(p.maxHp, p.hp + 15);
     }
   },
   {
-    id: 'energy_symbiont',
-    name: 'Энерго-Симбионт',
-    rar: 'Legendary',
-    desc: 'Синергия: Орбитальный Дефлектор + Энергетический щит/Орбитальные мины. Блокирование лазеров дефлектором мгновенно перезаряжает щит или плазмо-мины.',
-    synergy: true,
-    onceTag: 'energy_symbiont',
-    requires: [needTag('deflector'), p => (p.maxShield || 0) > 0 || (p.orbital || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('deflector'), p => (p.maxShield || 0) > 0 || (p.orbital || 0) > 0]) &&
-      !hasTag(p, 'energy_symbiont')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('energy_symbiont');
+    id: 'heart',
+    name: 'Реактор Живучести',
+    descriptions: [
+      'Увеличивает максимальную прочность корпуса на +25 HP.',
+      'Увеличивает максимальную прочность корпуса на +50 HP.',
+      'Увеличивает максимальную прочность корпуса на +75 HP.',
+      'Увеличивает максимальную прочность корпуса на +100 HP.',
+      'Увеличивает максимальную прочность корпуса на +130 HP.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_heart');
+      p.maxHp += 25;
+      p.hp = Math.min(p.maxHp, p.hp + 25);
     }
   },
   {
-    id: 'nanoregen_vanguard',
-    name: 'Нано-Регенератор "Авангард"',
-    rar: 'Legendary',
-    desc: 'Синергия: Нанитовый Рой + Авто-ремонт/Вампиризм. Лимит активации нано-ботов повышается до 50% HP, а сбор чипов увеличивает вампиризм на 40%.',
-    synergy: true,
-    onceTag: 'nanoregen_vanguard',
-    requires: [needTag('nanite_repair'), p => (p.regenLv || 0) > 0 || (p.lifesteal || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('nanite_repair'), p => (p.regenLv || 0) > 0 || (p.lifesteal || 0) > 0]) &&
-      !hasTag(p, 'nanoregen_vanguard')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('nanoregen_vanguard');
-      p.maxHp += 20;
-      p.hp = Math.min(p.maxHp, p.hp + 20);
+    id: 'regen',
+    name: 'Нано-Регенератор',
+    descriptions: [
+      'Каждые 3 сек восстанавливает +2 прочности обшивки.',
+      'Восстановление увеличено до +4 прочности каждые 3 сек.',
+      'Восстановление увеличено до +6 прочности каждые 3 сек.',
+      'Восстановление увеличено до +8 прочности каждые 3 сек.',
+      'Восстановление увеличено до +10 прочности каждые 3 сек.'
+    ],
+    rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_regen');
+      p.regenLv = Math.min(5, p.regenLv + 1);
     }
   },
+  {
+    id: 'reactor',
+    name: 'Быстрый Реактор',
+    descriptions: [
+      'Снижает интервал стрельбы основного оружия на 12%.',
+      'Снижает интервал стрельбы основного оружия на 24%.',
+      'Снижает интервал стрельбы основного оружия на 36%.',
+      'Снижает интервал стрельбы основного оружия на 48%.',
+      'Снижает интервал стрельбы основного оружия на 60%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_reactor');
+      p.shootRate = Math.max(5, Math.floor(p.shootRate * 0.88));
+    }
+  },
+  {
+    id: 'lens',
+    name: 'Фокусирующая Линза',
+    descriptions: [
+      'Увеличивает размер снарядов на +15% и радиус аур/взрывов на +15%.',
+      'Увеличивает размер снарядов на +30% и радиус аур/взрывов на +30%.',
+      'Увеличивает размер снарядов на +45% и радиус аур/взрывов на +45%.',
+      'Увеличивает размер снарядов на +60% и радиус аур/взрывов на +60%.',
+      'Увеличивает размер снарядов на +80% и радиус аур/взрывов на +80%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_lens');
+      p.bulletSize += 0.5;
+      if (p.explosionRadius) p.explosionRadius += 10;
+    }
+  },
+  {
+    id: 'duplicator',
+    name: 'Мультипликатор',
+    descriptions: [
+      'Добавляет +1 ракету в залпе основного оружия.',
+      'Добавляет +2 ракеты в залпе основного оружия.',
+      'Добавляет +3 ракеты в залпе основного оружия.',
+      'Добавляет +4 ракеты в залпе основного оружия.',
+      'Добавляет +5 ракет в залпе основного оружия.'
+    ],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_duplicator');
+      p.extraShots = Math.min(5, p.extraShots + 1);
+    }
+  },
+  {
+    id: 'wings',
+    name: 'Грави-Ускоритель',
+    descriptions: [
+      'Увеличивает скорость движения корабля на +15%.',
+      'Увеличивает скорость движения корабля на +30%.',
+      'Увеличивает скорость движения корабля на +45%.',
+      'Увеличивает скорость движения корабля на +60%.',
+      'Увеличивает скорость движения корабля на +75%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_wings');
+      p.moveSpeed = Math.min(spd(7), p.moveSpeed + spd(0.4));
+    }
+  },
+  {
+    id: 'magnet',
+    name: 'Притяжатель',
+    descriptions: [
+      'Увеличивает радиус сбора опыта и кредитов на +40%.',
+      'Увеличивает радиус сбора опыта и кредитов на +80%.',
+      'Увеличивает радиус сбора опыта и кредитов на +120%.',
+      'Увеличивает радиус сбора опыта и кредитов на +160%.',
+      'Увеличивает радиус сбора опыта и кредитов на +200%.'
+    ],
+    rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_magnet');
+      p.pickupRange = Math.min(250, p.pickupRange + 25);
+    }
+  },
+  {
+    id: 'clover',
+    name: 'Квантовый Навигатор',
+    descriptions: [
+      'Увеличивает шанс критического удара на +8% и получаемый опыт на +15%.',
+      'Увеличивает шанс критического удара на +16% и получаемый опыт на +30%.',
+      'Увеличивает шанс критического удара на +24% и получаемый опыт на +45%.',
+      'Увеличивает шанс критического удара на +32% и получаемый опыт на +60%.',
+      'Увеличивает шанс критического удара на +40% и получаемый опыт на +75%.'
+    ],
+    rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
+    applyEffect: (p, lv) => {
+      p.tags.add('passive_clover');
+      p.critChance = Math.min(0.65, p.critChance + 0.08);
+      p.xpGain = Math.min(2.5, p.xpGain + 0.15);
+    }
+  }
+];
 
-  // ── LEGENDARY SYNERGIES (Combining Perks) ──
-  {
-    id: 'clusterstorm',
-    name: 'Кластерный шторм',
-    rar: 'Legendary',
-    desc: 'Синергия: Фугас + Веер / Мультивыстрел. Взрывы разлетаются делящимися осколками.',
-    synergy: true,
-    onceTag: 'clusterstorm',
-    requires: [needTag('explosive'), p => hasTag(p, 'multishot') || (p.extraShots || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('explosive'), p => hasTag(p, 'multishot') || (p.extraShots || 0) > 0]) &&
-      !hasTag(p, 'clusterstorm')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('clusterstorm');
-      p.explosionRadius = Math.max(p.explosionRadius || 0, spd(62));
-      p.explosionDmg = Math.max(p.explosionDmg || 0, 0.75);
-      p.bulletSize += spd(0.8);
+export const UPGRADES: Upgrade[] = [];
+
+// Programmatically fill levels 1-5 for weapons and passives
+function populateUpgrades() {
+  const allMeta = [...WEAPONS_META, ...PASSIVES_META];
+  for (const meta of allMeta) {
+    for (let lv = 1; lv <= 5; lv++) {
+      const cardId = `${meta.id}_${lv}`;
+      UPGRADES.push({
+        id: cardId,
+        name: `${meta.name} (Ур. ${lv})`,
+        rar: meta.rarity[lv - 1],
+        desc: meta.descriptions[lv - 1],
+        requires: lv === 1 ? [] : [p => getWeaponLevel(p, meta.id) === lv - 1],
+        w: p => getWeaponLevel(p, meta.id) === lv - 1 ? 8 : 0,
+        apply: p => {
+          if (lv > 1) {
+            p.tags.delete(`${meta.id}_${lv - 1}`);
+          }
+          p.tags.add(cardId);
+          meta.applyEffect(p, lv);
+        }
+      });
     }
-  },
+  }
+}
+
+// Statically add synergies to the UPGRADES array
+const SYNERGIES: Upgrade[] = [
   {
-    id: 'cryotoxin',
-    name: 'Криотоксин',
+    id: 'syn_garlic',
+    name: 'Черная Корона (Soul Eater)',
     rar: 'Legendary',
-    desc: 'Синергия: Заморозка + Кислота. Замороженные враги плавятся под двойным уроном яда.',
+    desc: 'Эволюция: Грави-Аура + Реактор Живучести. Вокруг корабля рождается багровая микросингулярность: мощные пульсы урона, притяжение ресурсов и восстановление корпуса.',
     synergy: true,
-    onceTag: 'cryotoxin',
-    requires: [needTag('freeze'), needStat('poison', 0.1)],
-    w: p =>
-      synergyReady(p, [needTag('freeze'), needStat('poison', 0.1)]) && !hasTag(p, 'cryotoxin')
-        ? 10
-        : 0,
+    onceTag: 'syn_garlic',
+    requires: [p => getWeaponLevel(p, 'garlic') === 5 && getWeaponLevel(p, 'heart') >= 1],
+    w: p => (getWeaponLevel(p, 'garlic') === 5 && getWeaponLevel(p, 'heart') >= 1 && !p.tags.has('syn_garlic')) ? 10 : 0,
     apply: p => {
-      p.tags.add('cryotoxin');
-      p.freeze = Math.max(p.freeze || 0, 0.45);
-      p.poison = Math.max(p.poison || 0, 1);
-      p.poisonDmg = Math.max(p.poisonDmg || 0, 0.55);
-    }
-  },
-  {
-    id: 'stormcore',
-    name: 'Ядро бури',
-    rar: 'Legendary',
-    desc: 'Синергия: Лазер + Цепь / Рикошет. Проводники лазера перенаправляют каскады молний при выстреле.',
-    synergy: true,
-    onceTag: 'stormcore',
-    requires: [needTag('laser'), p => (p.chain || 0) > 0 || (p.ricochet || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('laser'), p => (p.chain || 0) > 0 || (p.ricochet || 0) > 0]) &&
-      !hasTag(p, 'stormcore')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('stormcore');
-      p.chain = Math.max(p.chain || 0, 1);
-      p.laserStacks = Math.max(p.laserStacks || 1, 2);
-      p.laserCd = 0;
-    }
-  },
-  {
-    id: 'gravitywell',
-    name: 'Гравитационный колодец',
-    rar: 'Legendary',
-    desc: 'Синергия: Аура + Магнит / Орбиталь. Чёрная дыра притягивает врагов в эпицентр гибели.',
-    synergy: true,
-    onceTag: 'gravitywell',
-    requires: [needStat('aura', 1), p => (p.magnetRange || 0) > 0 || (p.orbital || 0) > 0],
-    w: p =>
-      synergyReady(p, [needStat('aura', 1), p => (p.magnetRange || 0) > 0 || (p.orbital || 0) > 0]) &&
-      !hasTag(p, 'gravitywell')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('gravitywell');
-      p.aura = Math.max(p.aura || 0, spd(72));
-      p.auraDmg = (p.auraDmg || 0.15) + 0.08;
-      p.pickupRange = Math.max(p.pickupRange || 0, spd(110));
-    }
-  },
-  {
-    id: 'ionlance',
-    name: 'Ионное копьё',
-    rar: 'Legendary',
-    desc: 'Синергия: Искатель + Пробитие. За ракетой тянется разрушительный лазерный хлыст.',
-    synergy: true,
-    onceTag: 'ionlance',
-    requires: [needTag('homing'), needStat('pierce', 1)],
-    w: p =>
-      synergyReady(p, [needTag('homing'), needStat('pierce', 1)]) && !hasTag(p, 'ionlance')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('ionlance');
-      p.pierce = Math.max(p.pierce || 0, 2);
-      p.bulletSpeed += spd(1.2);
-      p.damage += 0.25;
-    }
-  },
-  {
-    id: 'bloodnova',
-    name: 'Кровавая вспышка',
-    rar: 'Legendary',
-    desc: 'Синергия: Вампиризм + Берсерк. На низком здоровье корпус испускает кольца жатвы.',
-    synergy: true,
-    onceTag: 'bloodnova',
-    requires: [needStat('lifesteal', 1), needTag('berserker')],
-    w: p =>
-      synergyReady(p, [needStat('lifesteal', 1), needTag('berserker')]) && !hasTag(p, 'bloodnova')
-        ? 10
-        : 0,
-    apply: p => {
-      p.tags.add('bloodnova');
-      p.lifesteal = Math.max(p.lifesteal || 0, 1.4);
+      p.tags.delete('garlic_5');
+      p.tags.add('syn_garlic');
       p.damage += 0.2;
     }
   },
   {
-    id: 'aegisreactor',
-    name: 'Реактор Эгиды',
+    id: 'syn_bible',
+    name: 'Вечные Орбиты (Unholy Vespers)',
     rar: 'Legendary',
-    desc: 'Синергия: Щит + Силовое поле. Потребление щита создаёт защитную отталкивающую волну.',
+    desc: 'Эволюция: Орбитальные Реликты + Быстрый Реактор. Спутники превращаются в фиолетовое кольцо абсолютной энергии, вращаются со сверхвысокой скоростью и режут все на орбите.',
     synergy: true,
-    onceTag: 'aegisreactor',
-    requires: [needStat('maxShield', 1), needStat('armor', 0.1)],
-    w: p =>
-      synergyReady(p, [needStat('maxShield', 1), needStat('armor', 0.1)]) &&
-      !hasTag(p, 'aegisreactor')
-        ? 10
-        : 0,
+    onceTag: 'syn_bible',
+    requires: [p => getWeaponLevel(p, 'bible') === 5 && getWeaponLevel(p, 'reactor') >= 1],
+    w: p => (getWeaponLevel(p, 'bible') === 5 && getWeaponLevel(p, 'reactor') >= 1 && !p.tags.has('syn_bible')) ? 10 : 0,
     apply: p => {
-      p.tags.add('aegisreactor');
-      p.maxShield += 1;
-      p.shield = Math.min(p.maxShield, (p.shield || 0) + 1);
-      p.armor = Math.max(p.armor || 0, 0.35);
+      p.tags.delete('bible_5');
+      p.tags.add('syn_bible');
+      p.bulletSize += 0.3;
     }
   },
   {
-    id: 'executionmatrix',
-    name: 'Матрица казни',
+    id: 'syn_water',
+    name: 'Синяя Туманность (La Borra)',
     rar: 'Legendary',
-    desc: 'Синергия: Крит + Цепь / Рикошет. Критические детонации создают истребительную электросеть.',
+    desc: 'Эволюция: Плазменный Конденсат + Фокусирующая Линза. Синие плазменные туманности медленно смещаются вслед за кораблем, расширяя радиус поражения.',
     synergy: true,
-    onceTag: 'executionmatrix',
-    requires: [needStat('critChance', 0.15), p => (p.chain || 0) > 0 || (p.ricochet || 0) > 0],
-    w: p =>
-      synergyReady(p, [needStat('critChance', 0.15), p => (p.chain || 0) > 0 || (p.ricochet || 0) > 0]) &&
-      !hasTag(p, 'executionmatrix')
-        ? 10
-        : 0,
+    onceTag: 'syn_water',
+    requires: [p => getWeaponLevel(p, 'water') === 5 && getWeaponLevel(p, 'lens') >= 1],
+    w: p => (getWeaponLevel(p, 'water') === 5 && getWeaponLevel(p, 'lens') >= 1 && !p.tags.has('syn_water')) ? 10 : 0,
     apply: p => {
-      p.tags.add('executionmatrix');
-      p.critChance = Math.min(0.65, (p.critChance || 0) + 0.1);
-      p.critDmg += 0.25;
+      p.tags.delete('water_5');
+      p.tags.add('syn_water');
     }
   },
   {
-    id: 'droneswarm',
-    name: 'Рой дронов-истребителей',
+    id: 'syn_lightning',
+    name: 'Петля Перегруза (Thunder Loop)',
     rar: 'Legendary',
-    desc: 'Синергия: Спутники + Скорострельность. Дроны начинают вести огонь мини-ракетами.',
+    desc: 'Эволюция: Ионный Разрядник + Мультипликатор. Каждый разряд бьет дважды и выпускает вторичные дуги перегруженной энергии.',
     synergy: true,
-    onceTag: 'droneswarm',
-    requires: [needStat('drone', 1), p => p.shootRate <= 14 || hasTag(p, 'laser')],
-    w: p =>
-      synergyReady(p, [needStat('drone', 1), p => p.shootRate <= 14 || hasTag(p, 'laser')]) &&
-      !hasTag(p, 'droneswarm')
-        ? 10
-        : 0,
+    onceTag: 'syn_lightning',
+    requires: [p => getWeaponLevel(p, 'lightning') === 5 && getWeaponLevel(p, 'duplicator') >= 1],
+    w: p => (getWeaponLevel(p, 'lightning') === 5 && getWeaponLevel(p, 'duplicator') >= 1 && !p.tags.has('syn_lightning')) ? 10 : 0,
     apply: p => {
-      p.tags.add('droneswarm');
-      p.drone = Math.max(p.drone || 0, 2);
-      p.shootRate = Math.max(6, p.shootRate - 1);
+      p.tags.delete('lightning_5');
+      p.tags.add('syn_lightning');
     }
   },
   {
-    id: 'phaseblade',
-    name: 'Фазовое лезвие',
+    id: 'syn_cross',
+    name: 'Звездный Разруб (Heaven Sword)',
     rar: 'Legendary',
-    desc: 'Синергия: Адреналин + Скорость. При получении ускорения корпус шинкует ближних врагов.',
+    desc: 'Эволюция: Фотонный Бумеранг + Квантовый Навигатор. Бумеранги заменяются гигантскими сияющими фотонными лезвиями с повышенным шансом критического удара.',
     synergy: true,
-    onceTag: 'phaseblade',
-    requires: [needTag('adrenaline'), p => (p.dodge || 0) > 0 || p.moveSpeed > spd(3.4)],
-    w: p =>
-      synergyReady(p, [needTag('adrenaline'), p => (p.dodge || 0) > 0 || p.moveSpeed > spd(3.4)]) &&
-      !hasTag(p, 'phaseblade')
-        ? 10
-        : 0,
+    onceTag: 'syn_cross',
+    requires: [p => getWeaponLevel(p, 'cross') === 5 && getWeaponLevel(p, 'clover') >= 1],
+    w: p => (getWeaponLevel(p, 'cross') === 5 && getWeaponLevel(p, 'clover') >= 1 && !p.tags.has('syn_cross')) ? 10 : 0,
     apply: p => {
-      p.tags.add('phaseblade');
-      p.dodge = Math.max(p.dodge || 0, 0.25);
-      p.moveSpeed += spd(0.4);
+      p.tags.delete('cross_5');
+      p.tags.add('syn_cross');
+      p.critChance = Math.min(0.85, p.critChance + 0.15);
+      p.critDmg += 0.5;
     }
   },
   {
-    id: 'phoenixloop',
-    name: 'Петля феникса',
+    id: 'syn_scythe',
+    name: 'Спираль Энтропии (Death Spiral)',
     rar: 'Legendary',
-    desc: 'Синергия: Резерв + Ремонт / Вампиризм. Воскрешение обрушивает огненный смерч на сектор.',
+    desc: 'Эволюция: Плазменная Коса + Звездный Катализатор. Корабль выпускает круговой залп из 8 огромных вращающихся багровых плазменных дуг.',
     synergy: true,
-    onceTag: 'phoenixloop',
-    requires: [needTag('secondwind'), p => (p.regenLv || 0) > 0 || (p.lifesteal || 0) > 0],
-    w: p =>
-      synergyReady(p, [needTag('secondwind'), p => (p.regenLv || 0) > 0 || (p.lifesteal || 0) > 0]) &&
-      !hasTag(p, 'phoenixloop')
-        ? 10
-        : 0,
+    onceTag: 'syn_scythe',
+    requires: [p => getWeaponLevel(p, 'scythe') === 5 && getWeaponLevel(p, 'spinach') >= 1],
+    w: p => (getWeaponLevel(p, 'scythe') === 5 && getWeaponLevel(p, 'spinach') >= 1 && !p.tags.has('syn_scythe')) ? 10 : 0,
     apply: p => {
-      p.tags.add('phoenixloop');
-      p.regenLv = Math.max(p.regenLv || 0, 1);
-      p.maxHp += 20;
-      p.hp = Math.min(p.maxHp, p.hp + 20);
+      p.tags.delete('scythe_5');
+      p.tags.add('syn_scythe');
     }
   },
   {
-    id: 'prospector',
-    name: 'Двигатель старателя',
+    id: 'syn_dagger',
+    name: 'Тысяча Фотонов (Thousand Edge)',
     rar: 'Legendary',
-    desc: 'Синергия: Магнит + Сканер XP. Сбор ресурсов вызывает детонации обогащенного сырья.',
+    desc: 'Эволюция: Вихрь Клинков + Грави-Ускоритель. Корабль выпускает непрерывный поток сверхбыстрых фотонных игл перед собой.',
     synergy: true,
-    onceTag: 'prospector',
-    requires: [needStat('magnetRange', 1), p => (p.xpGain || 1) > 1 || (p.creditGain || 1) > 1],
-    w: p =>
-      synergyReady(p, [needStat('magnetRange', 1), p => (p.xpGain || 1) > 1 || (p.creditGain || 1) > 1]) &&
-      !hasTag(p, 'prospector')
-        ? 10
-        : 0,
+    onceTag: 'syn_dagger',
+    requires: [p => getWeaponLevel(p, 'dagger') === 5 && getWeaponLevel(p, 'wings') >= 1],
+    w: p => (getWeaponLevel(p, 'dagger') === 5 && getWeaponLevel(p, 'wings') >= 1 && !p.tags.has('syn_dagger')) ? 10 : 0,
     apply: p => {
-      p.tags.add('prospector');
-      p.xpGain = Math.max(p.xpGain || 1, 1.35);
-      p.creditGain = Math.max(p.creditGain || 1, 1.35);
-      p.pickupRange = Math.max(p.pickupRange || 0, spd(145));
+      p.tags.delete('dagger_5');
+      p.tags.add('syn_dagger');
+    }
+  },
+  {
+    id: 'syn_mana',
+    name: 'Пульсарный Столб (Mannajja)',
+    rar: 'Legendary',
+    desc: 'Эволюция: Космический Столб + Притяжатель. Звездный луч расширяется в гигантскую золотую ударную волну, замедляя врагов и притягивая ресурсы.',
+    synergy: true,
+    onceTag: 'syn_mana',
+    requires: [p => getWeaponLevel(p, 'mana') === 5 && getWeaponLevel(p, 'magnet') >= 1],
+    w: p => (getWeaponLevel(p, 'mana') === 5 && getWeaponLevel(p, 'magnet') >= 1 && !p.tags.has('syn_mana')) ? 10 : 0,
+    apply: p => {
+      p.tags.delete('mana_5');
+      p.tags.add('syn_mana');
+    }
+  },
+  {
+    id: 'syn_lancet',
+    name: 'Коридор Времени (Infinite Corridor)',
+    rar: 'Legendary',
+    desc: 'Эволюция: Хроно-Ланцет + Нейтронная Броня. Проецирует хронографический круг: лучи sweep-сканера замораживают врагов и срезают их текущее здоровье.',
+    synergy: true,
+    onceTag: 'syn_lancet',
+    requires: [p => getWeaponLevel(p, 'lancet') === 5 && getWeaponLevel(p, 'armor') >= 1],
+    w: p => (getWeaponLevel(p, 'lancet') === 5 && getWeaponLevel(p, 'armor') >= 1 && !p.tags.has('syn_lancet')) ? 10 : 0,
+    apply: p => {
+      p.tags.delete('lancet_5');
+      p.tags.add('syn_lancet');
+    }
+  },
+  {
+    id: 'syn_laurel',
+    name: 'Багряный Купол (Crimson Shroud)',
+    rar: 'Legendary',
+    desc: 'Эволюция: Барьер Эгиды + Нано-Регенератор. Накапливает до 3 зарядов блокировки. При поглощении удара выпускает круговую волну багровых фотонных клинков.',
+    synergy: true,
+    onceTag: 'syn_laurel',
+    requires: [p => getWeaponLevel(p, 'laurel') === 5 && getWeaponLevel(p, 'regen') >= 1],
+    w: p => (getWeaponLevel(p, 'laurel') === 5 && getWeaponLevel(p, 'regen') >= 1 && !p.tags.has('syn_laurel')) ? 10 : 0,
+    apply: p => {
+      p.tags.delete('laurel_5');
+      p.tags.add('syn_laurel');
+      if (p.laurelShields) p.laurelShields = Math.min(3, p.laurelShields + 1);
     }
   }
 ];
+
+// Populate and add synergies
+populateUpgrades();
+UPGRADES.push(...SYNERGIES);
 
 export function weightedPick(pool: any[]): any {
   if (!pool || !pool.length) return null;
@@ -770,11 +575,6 @@ export function pickUpgrades(player: Player): Upgrade[] {
       if (used.has(u.id)) return false;
       if (u.onceTag && player.tags.has(u.onceTag)) return false;
       if (u.requires && !synergyReady(player, u.requires)) return false;
-      
-      const tagChecks = ['glass', 'explosive', 'homing', 'multishot', 'berserker', 'adrenaline', 'secondwind', 'freeze'];
-      for (const tag of tagChecks) {
-        if (u.id === tag && player.tags.has(tag)) return false;
-      }
       return true;
     })
     .map(u => ({ ...u, w: u.w(player) }))

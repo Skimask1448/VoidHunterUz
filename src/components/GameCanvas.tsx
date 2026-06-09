@@ -8,7 +8,7 @@ import { GameState, Enemy, Bullet, EnemyBullet, Gem, Particle, LightningBolt, Pl
 import { spawnEnemy, spawnMiniBoss, spawnBoss } from '../utils/enemies';
 import { drawProceduralEnemy, drawProceduralRocket, drawProceduralPlayer } from '../utils/textures';
 import { Sound } from '../utils/sound';
-import { spd } from '../utils/upgrades';
+import { spd, getWeaponLevel } from '../utils/upgrades';
 import { SpatialHash } from '../utils/spatial-hash';
 
 interface GameCanvasProps {
@@ -64,6 +64,9 @@ export default function GameCanvas({
     deflectorCd: 0,
     deflectorAngle: 0,
     singularities: [],
+    waterPools: [],
+    manaPillars: [],
+    lancetBeams: [],
   });
 
   const keys = useRef<{ [key: string]: boolean }>({});
@@ -123,7 +126,9 @@ export default function GameCanvas({
       spawnCd: 90,
       deflectorCd: 0,
       deflectorAngle: 0,
-      singularities: [],
+      waterPools: [],
+      manaPillars: [],
+      lancetBeams: [],
       player: {
         x: width / 2,
         y: height - 120,
@@ -169,6 +174,20 @@ export default function GameCanvas({
         trail: [],
         laserStacks: 0,
         laserCd: 180,
+        garlicCd: 0,
+        bibleAngle: 0,
+        bibleCd: 0,
+        waterCd: 0,
+        lightningCd: 0,
+        crossCd: 0,
+        scytheCd: 0,
+        daggerCd: 0,
+        manaCd: 0,
+        lancetCd: 0,
+        laurelShields: 0,
+        laurelMax: 0,
+        laurelCd: 0,
+        laurelCdMax: 900,
       },
     };
     
@@ -632,6 +651,293 @@ export default function GameCanvas({
       p.shootCd = Math.floor(p.shootRate / berserkerMult);
     }
 
+    const cooldownScale = Math.max(0.35, 1 - getWeaponLevel(p, 'reactor') * 0.12);
+    const areaScale = 1 + getWeaponLevel(p, 'lens') * 0.15;
+    const duplicator = getWeaponLevel(p, 'duplicator');
+    const fireCosmicBlade = (ang: number, speed: number, r: number, dmg: number, pierce: number, col: string, weaponKind: Bullet['weaponKind']) => {
+      G.current.bullets.push({
+        x: p.x,
+        y: p.y,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        r,
+        pierce,
+        dmg,
+        col,
+        ricochet: 0,
+        chain: 0,
+        homing: false,
+        explosive: false,
+        clusterstorm: false,
+        ionlance: false,
+        critHit: Math.random() < p.critChance,
+        skinId: selectedRocketSkin,
+        trail: [],
+        angle: ang,
+        weaponKind,
+      });
+    };
+
+    // Space perk weapons and evolutions.
+    const garlicLv = getWeaponLevel(p, 'garlic');
+    if (garlicLv > 0) {
+      const evolved = p.tags.has('syn_garlic');
+      p.garlicCd = (p.garlicCd || 0) - 1;
+      if (p.garlicCd <= 0) {
+        p.garlicCd = evolved ? 36 : Math.max(38, 80 - garlicLv * 8);
+        const radius = spd((evolved ? 112 : 58 + garlicLv * 13) * areaScale);
+        const dmg = p.damage * (evolved ? 3.8 : 0.7 + garlicLv * 0.32);
+        const hits = damageArea(p.x, p.y, radius, dmg, evolved ? '#fb7185' : '#22d3ee');
+        if (evolved && hits > 0) p.hp = Math.min(p.maxHp, p.hp + hits * 0.8);
+        G.current.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.7, col: evolved ? '#fb7185' : '#22d3ee', r: radius * 0.32, type: 'ring', growth: spd(4.2), friction: 1 });
+      }
+    }
+
+    const bibleLv = getWeaponLevel(p, 'bible');
+    if (bibleLv > 0) {
+      const evolved = p.tags.has('syn_bible');
+      const count = evolved ? 8 + duplicator : Math.min(7, bibleLv + 1 + Math.floor(duplicator / 2));
+      p.bibleAngle = (p.bibleAngle || 0) + (evolved ? 0.18 : 0.055 + bibleLv * 0.012);
+      const radius = spd((evolved ? 70 : 42 + bibleLv * 6) * areaScale);
+      const dmg = p.damage * (evolved ? 0.78 : 0.28 + bibleLv * 0.08);
+      for (let i = 0; i < count; i++) {
+        const oa = p.bibleAngle + i * (Math.PI * 2 / count);
+        const ox = p.x + Math.cos(oa) * radius;
+        const oy = p.y + Math.sin(oa) * radius;
+        for (const e of G.current.enemies) {
+          if (e.hp <= 0) continue;
+          if (Math.hypot(ox - e.x, oy - e.y) < e.r + spd(evolved ? 17 : 12)) {
+            e.hp -= dmg;
+            G.current.totalDamage += dmg;
+            if (G.current.frame % 6 === 0) burstAt(ox, oy, evolved ? '#c084fc' : '#67e8f9', 2, 1.2);
+          }
+        }
+      }
+    }
+
+    const waterLv = getWeaponLevel(p, 'water');
+    if (waterLv > 0) {
+      const evolved = p.tags.has('syn_water');
+      p.waterCd = (p.waterCd || 0) - 1;
+      if (p.waterCd <= 0) {
+        p.waterCd = Math.floor((evolved ? 48 : Math.max(62, 150 - waterLv * 16)) * cooldownScale);
+        const drops = (evolved ? 3 : Math.ceil(waterLv / 2)) + Math.floor(duplicator / 2);
+        for (let i = 0; i < drops; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const dist = spd(rnd(45, evolved ? 210 : 170));
+          G.current.waterPools!.push({
+            x: Math.max(24, Math.min(width - 24, p.x + Math.cos(ang) * dist)),
+            y: Math.max(24, Math.min(height - 24, p.y + Math.sin(ang) * dist)),
+            life: evolved ? 360 : 190 + waterLv * 34,
+            r: spd((evolved ? 54 : 28 + waterLv * 7) * areaScale),
+            dmg: p.damage * (evolved ? 0.33 : 0.16 + waterLv * 0.04),
+            evolved,
+          });
+        }
+      }
+    }
+
+    const lightningLv = getWeaponLevel(p, 'lightning');
+    if (lightningLv > 0) {
+      const evolved = p.tags.has('syn_lightning');
+      p.lightningCd = (p.lightningCd || 0) - 1;
+      if (p.lightningCd <= 0) {
+        p.lightningCd = Math.floor((evolved ? 62 : Math.max(70, 145 - lightningLv * 12)) * cooldownScale);
+        const strikes = (evolved ? 4 : 1 + Math.floor(lightningLv / 2)) + duplicator;
+        const targets = [...G.current.enemies].filter(e => e.hp > 0).sort(() => Math.random() - 0.5).slice(0, strikes);
+        for (const e of targets) {
+          const dmg = p.damage * (evolved ? 5.2 : 2.7 + lightningLv * 0.55);
+          e.hp -= dmg;
+          G.current.totalDamage += dmg;
+          addLightning(e.x + rnd(-70, 70), 0, e.x, e.y, evolved ? '#facc15' : '#7dd3fc', 16);
+          burstAt(e.x, e.y, evolved ? '#fde68a' : '#93c5fd', 10, 3.4);
+          if (evolved) {
+            for (const e2 of G.current.enemies) {
+              if (e2 === e || e2.hp <= 0) continue;
+              if (Math.hypot(e2.x - e.x, e2.y - e.y) < spd(135)) {
+                e2.hp -= dmg * 0.45;
+                G.current.totalDamage += dmg * 0.45;
+                addLightning(e.x, e.y, e2.x, e2.y, '#fde047', 10);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const crossLv = getWeaponLevel(p, 'cross');
+    if (crossLv > 0) {
+      const evolved = p.tags.has('syn_cross');
+      p.crossCd = (p.crossCd || 0) - 1;
+      if (p.crossCd <= 0) {
+        p.crossCd = Math.floor((evolved ? 80 : Math.max(90, 170 - crossLv * 14)) * cooldownScale);
+        const count = (evolved ? 2 : 1 + Math.floor(crossLv / 2)) + Math.floor(duplicator / 2);
+        for (let i = 0; i < count; i++) {
+          const spread = (i - (count - 1) / 2) * 0.24;
+          const ang = p.facing - Math.PI / 2 + spread;
+          const b: Bullet = {
+            x: p.x,
+            y: p.y,
+            vx: Math.cos(ang) * spd(evolved ? 7.4 : 5.8),
+            vy: Math.sin(ang) * spd(evolved ? 7.4 : 5.8),
+            r: spd((evolved ? 11 : 7 + crossLv) * areaScale),
+            pierce: evolved ? 8 : 1 + crossLv,
+            dmg: p.damage * (evolved ? 6.8 : 1.8 + crossLv * 0.38),
+            col: evolved ? '#facc15' : '#38bdf8',
+            ricochet: 0,
+            chain: 0,
+            homing: false,
+            explosive: false,
+            clusterstorm: false,
+            ionlance: false,
+            critHit: Math.random() < (p.critChance + (evolved ? 0.25 : 0)),
+            skinId: selectedRocketSkin,
+            trail: [],
+            angle: ang,
+            _crossState: 'forward',
+            _crossTimer: 0,
+            weaponKind: evolved ? 'sword' : 'cross',
+          };
+          G.current.bullets.push(b);
+        }
+      }
+    }
+
+    const scytheLv = getWeaponLevel(p, 'scythe');
+    if (scytheLv > 0) {
+      const evolved = p.tags.has('syn_scythe');
+      p.scytheCd = (p.scytheCd || 0) - 1;
+      if (p.scytheCd <= 0) {
+        p.scytheCd = Math.floor((evolved ? 105 : Math.max(95, 170 - scytheLv * 18)) * cooldownScale);
+        const count = evolved ? 8 + Math.floor(duplicator / 2) : Math.ceil(scytheLv / 2) + Math.floor(duplicator / 2);
+        const base = evolved ? Math.random() * Math.PI * 2 : p.facing - Math.PI / 2;
+        for (let i = 0; i < count; i++) {
+          const ang = evolved ? base + i * Math.PI * 2 / count : base + (i - (count - 1) / 2) * 0.36;
+          fireCosmicBlade(ang, spd(evolved ? 6.2 : 5.2), spd((evolved ? 13 : 8 + scytheLv) * areaScale), p.damage * (evolved ? 4.4 : 2.1 + scytheLv * 0.5), 99, evolved ? '#fb7185' : '#a78bfa', 'scythe');
+        }
+      }
+    }
+
+    const daggerLv = getWeaponLevel(p, 'dagger');
+    if (daggerLv > 0) {
+      const evolved = p.tags.has('syn_dagger');
+      p.daggerCd = (p.daggerCd || 0) - 1;
+      if (p.daggerCd <= 0) {
+        p.daggerCd = Math.floor((evolved ? 8 : Math.max(45, 112 - daggerLv * 12)) * cooldownScale);
+        const count = evolved ? 2 + Math.floor(duplicator / 2) : 2 + daggerLv + duplicator;
+        const base = p.facing - Math.PI / 2;
+        for (let i = 0; i < count; i++) {
+          const ang = base + rnd(-0.1, 0.1) + (i - (count - 1) / 2) * 0.035;
+          fireCosmicBlade(ang, spd(evolved ? 9.2 : 7.2), spd((evolved ? 4.8 : 3.4 + daggerLv * 0.25) * areaScale), p.damage * (evolved ? 1.2 : 0.8 + daggerLv * 0.18), evolved ? 2 : Math.floor(daggerLv / 2), evolved ? '#e0f2fe' : '#60a5fa', 'dagger');
+        }
+      }
+    }
+
+    const manaLv = getWeaponLevel(p, 'mana');
+    if (manaLv > 0) {
+      const evolved = p.tags.has('syn_mana');
+      p.manaCd = (p.manaCd || 0) - 1;
+      if (p.manaCd <= 0) {
+        p.manaCd = Math.floor((evolved ? 150 : Math.max(150, 280 - manaLv * 25)) * cooldownScale);
+        G.current.manaPillars!.push({
+          x: p.x,
+          y: p.y,
+          life: evolved ? 70 : 44 + manaLv * 5,
+          w: spd((evolved ? 260 : 48 + manaLv * 15) * areaScale),
+          col: evolved ? '#fef3c7' : '#67e8f9',
+        });
+        if (evolved) {
+          for (const g of G.current.gems) {
+            const a = Math.atan2(p.y - g.y, p.x - g.x);
+            g.vx += Math.cos(a) * 4;
+            g.vy += Math.sin(a) * 4;
+          }
+        }
+      }
+    }
+
+    const lancetLv = getWeaponLevel(p, 'lancet');
+    if (lancetLv > 0) {
+      const evolved = p.tags.has('syn_lancet');
+      p.lancetCd = (p.lancetCd || 0) - 1;
+      if (p.lancetCd <= 0) {
+        p.lancetCd = Math.floor((evolved ? 135 : Math.max(155, 260 - lancetLv * 22)) * cooldownScale);
+        const beams = evolved ? 8 : Math.min(4, 1 + Math.floor(lancetLv / 2));
+        const sweep = G.current.frame * 0.025;
+        for (let i = 0; i < beams; i++) {
+          const ang = sweep + i * (Math.PI * 2 / beams);
+          G.current.lancetBeams!.push({ x: p.x, y: p.y, ang, life: evolved ? 48 : 32, width: spd((evolved ? 16 : 10 + lancetLv) * areaScale), evolved });
+        }
+      }
+    }
+
+    const laurelLv = getWeaponLevel(p, 'laurel');
+    if (laurelLv > 0) {
+      const evolved = p.tags.has('syn_laurel');
+      p.laurelMax = evolved ? 3 : laurelLv >= 3 ? 2 : 1;
+      p.laurelCdMax = evolved ? 360 : Math.max(420, 980 - laurelLv * 100);
+      if ((p.laurelShields || 0) < (p.laurelMax || 1)) {
+        p.laurelCd = (p.laurelCd || 0) + 1;
+        if (p.laurelCd >= (p.laurelCdMax || 900)) {
+          p.laurelCd = 0;
+          p.laurelShields = Math.min(p.laurelMax || 1, (p.laurelShields || 0) + 1);
+          Sound.play('shield');
+        }
+      }
+    }
+
+    for (const pool of G.current.waterPools || []) {
+      pool.life--;
+      if (pool.evolved) {
+        const a = Math.atan2(p.y - pool.y, p.x - pool.x);
+        pool.x += Math.cos(a) * spd(0.55);
+        pool.y += Math.sin(a) * spd(0.55);
+      }
+      for (const e of G.current.enemies) {
+        if (e.hp <= 0) continue;
+        const d = Math.hypot(e.x - pool.x, e.y - pool.y);
+        if (d < pool.r + e.r) {
+          e.hp -= pool.dmg;
+          G.current.totalDamage += pool.dmg;
+          if (pool.evolved) e.frozen = Math.max(e.frozen, 5);
+        }
+      }
+    }
+    G.current.waterPools = (G.current.waterPools || []).filter(pool => pool.life > 0);
+
+    for (const pillar of G.current.manaPillars || []) {
+      pillar.life--;
+      for (const e of G.current.enemies) {
+        if (e.hp <= 0) continue;
+        if (Math.abs(e.x - pillar.x) < pillar.w * 0.5 + e.r) {
+          const dmg = p.damage * (pillar.w > spd(180) ? 0.8 : 0.46);
+          e.hp -= dmg;
+          G.current.totalDamage += dmg;
+          e.frozen = Math.max(e.frozen, pillar.w > spd(180) ? 18 : 4);
+        }
+      }
+    }
+    G.current.manaPillars = (G.current.manaPillars || []).filter(pillar => pillar.life > 0);
+
+    for (const beam of G.current.lancetBeams || []) {
+      beam.life--;
+      for (const e of G.current.enemies) {
+        if (e.hp <= 0) continue;
+        const dx2 = e.x - beam.x;
+        const dy2 = e.y - beam.y;
+        const proj = dx2 * Math.cos(beam.ang) + dy2 * Math.sin(beam.ang);
+        const perp = Math.abs(dx2 * Math.sin(beam.ang) - dy2 * Math.cos(beam.ang));
+        if (proj > 0 && perp < e.r + beam.width) {
+          e.frozen = Math.max(e.frozen, beam.evolved ? 180 : 90 + lancetLv * 18);
+          const dmg = beam.evolved ? Math.max(p.damage * 2.8, e.hp * 0.01) : p.damage * 0.36;
+          e.hp -= dmg;
+          G.current.totalDamage += dmg;
+        }
+      }
+    }
+    G.current.lancetBeams = (G.current.lancetBeams || []).filter(beam => beam.life > 0);
+
     // Global Wave Difficulty and enemy spawning
     G.current.spawnCd--;
     if (G.current.spawnCd <= 0 && G.current.enemies.length < 50) {
@@ -931,6 +1237,21 @@ export default function GameCanvas({
           r: Math.random() * 4 + 3,
           fade: true,
         });
+      }
+
+      if (b._crossState) {
+        b._crossTimer = (b._crossTimer || 0) + 1;
+        b.angle = Math.atan2(b.vy, b.vx) + G.current.frame * 0.12;
+        if (b._crossState === 'forward' && b._crossTimer > 42) {
+          b._crossState = 'returning';
+        }
+        if (b._crossState === 'returning') {
+          const returnAng = Math.atan2(p.y - b.y, p.x - b.x);
+          const speed = Math.max(spd(5), Math.hypot(b.vx, b.vy));
+          b.vx = b.vx * 0.86 + Math.cos(returnAng) * speed * 0.14;
+          b.vy = b.vy * 0.86 + Math.sin(returnAng) * speed * 0.14;
+          if (Math.hypot(p.x - b.x, p.y - b.y) < spd(22)) b._dead = true;
+        }
       }
 
       // Homing calculation
@@ -1500,8 +1821,20 @@ export default function GameCanvas({
 
         if (Math.random() < p.dodge) continue;
 
-        if (p.shield > 0) {
-          p.shield--;
+        if (p.shield > 0 || (p.laurelShields || 0) > 0) {
+          if ((p.laurelShields || 0) > 0) {
+            p.laurelShields = Math.max(0, (p.laurelShields || 0) - 1);
+            p.laurelCd = 0;
+            if (p.tags.has('syn_laurel')) {
+              for (let i = 0; i < 12; i++) {
+                const a = i * Math.PI * 2 / 12;
+                fireCosmicBlade(a, spd(7.5), spd(5.5), p.damage * 2.4, 2, '#fb7185', 'shroud');
+              }
+              damageArea(p.x, p.y, spd(120), p.damage * 3.5, '#fb7185');
+            }
+          } else {
+            p.shield--;
+          }
           p.shieldCd = 0;
           Sound.play('shield');
           if (p.tags.has('aegisreactor')) {
@@ -1536,8 +1869,20 @@ export default function GameCanvas({
         eb.dead = true;
         if (Math.random() < p.dodge) continue;
 
-        if (p.shield > 0) {
-          p.shield--;
+        if (p.shield > 0 || (p.laurelShields || 0) > 0) {
+          if ((p.laurelShields || 0) > 0) {
+            p.laurelShields = Math.max(0, (p.laurelShields || 0) - 1);
+            p.laurelCd = 0;
+            if (p.tags.has('syn_laurel')) {
+              for (let i = 0; i < 12; i++) {
+                const a = i * Math.PI * 2 / 12;
+                fireCosmicBlade(a, spd(7.5), spd(5.5), p.damage * 2.4, 2, '#fb7185', 'shroud');
+              }
+              damageArea(p.x, p.y, spd(120), p.damage * 3.5, '#fb7185');
+            }
+          } else {
+            p.shield--;
+          }
           p.shieldCd = 0;
           Sound.play('shield');
           if (p.tags.has('aegisreactor')) {
@@ -1768,6 +2113,143 @@ export default function GameCanvas({
       if (G.current.state !== 'menu') {
         const p = G.current.player;
         if (p) {
+          for (const pool of G.current.waterPools || []) {
+            ctx.save();
+            const alpha = Math.max(0, Math.min(0.65, pool.life / 140));
+            const grad = ctx.createRadialGradient(pool.x, pool.y, 2, pool.x, pool.y, pool.r);
+            grad.addColorStop(0, pool.evolved ? `rgba(125, 211, 252, ${alpha})` : `rgba(34, 211, 238, ${alpha})`);
+            grad.addColorStop(0.45, pool.evolved ? `rgba(59, 130, 246, ${alpha * 0.45})` : `rgba(14, 165, 233, ${alpha * 0.35})`);
+            grad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(pool.x, pool.y, pool.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = pool.evolved ? 'rgba(191, 219, 254, 0.55)' : 'rgba(103, 232, 249, 0.38)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(pool.x, pool.y, pool.r * (0.72 + Math.sin(G.current.frame * 0.08) * 0.08), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          for (const pillar of G.current.manaPillars || []) {
+            ctx.save();
+            const alpha = Math.min(0.75, pillar.life / 42);
+            const grad = ctx.createLinearGradient(pillar.x - pillar.w / 2, 0, pillar.x + pillar.w / 2, 0);
+            grad.addColorStop(0, 'rgba(15, 23, 42, 0)');
+            grad.addColorStop(0.5, pillar.col.replace(')', `, ${alpha})`).replace('rgb', 'rgba'));
+            grad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(pillar.x - pillar.w / 2, 0, pillar.w, height);
+            ctx.strokeStyle = pillar.col;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pillar.x, 0);
+            ctx.lineTo(pillar.x, height);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          for (const beam of G.current.lancetBeams || []) {
+            ctx.save();
+            const alpha = Math.min(0.75, beam.life / 28);
+            ctx.translate(beam.x, beam.y);
+            ctx.rotate(beam.ang);
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = beam.evolved ? '#e0f2fe' : '#93c5fd';
+            ctx.shadowColor = beam.evolved ? '#bfdbfe' : '#60a5fa';
+            ctx.shadowBlur = 14;
+            ctx.lineWidth = beam.width;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.max(width, height) * 1.4, 0);
+            ctx.stroke();
+            if (beam.evolved) {
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+              ctx.lineWidth = 1;
+              for (let i = 1; i <= 12; i++) {
+                const x = i * 55;
+                ctx.beginPath();
+                ctx.moveTo(x, -beam.width * 1.4);
+                ctx.lineTo(x, beam.width * 1.4);
+                ctx.stroke();
+              }
+            }
+            ctx.restore();
+          }
+
+          const garlicLv = getWeaponLevel(p, 'garlic');
+          if (garlicLv > 0) {
+            const evolved = p.tags.has('syn_garlic');
+            const radius = spd((evolved ? 112 : 58 + garlicLv * 13) * (1 + getWeaponLevel(p, 'lens') * 0.15));
+            ctx.save();
+            ctx.globalAlpha = evolved ? 0.18 : 0.12;
+            ctx.fillStyle = evolved ? '#fb7185' : '#22d3ee';
+            ctx.shadowColor = evolved ? '#fb7185' : '#22d3ee';
+            ctx.shadowBlur = 22;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = evolved ? '#fecdd3' : '#a5f3fc';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 3; i++) {
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, radius * (0.78 + i * 0.11 + Math.sin(G.current.frame * 0.06 + i) * 0.025), 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
+          const bibleLv = getWeaponLevel(p, 'bible');
+          if (bibleLv > 0) {
+            const evolved = p.tags.has('syn_bible');
+            const count = evolved ? 8 + getWeaponLevel(p, 'duplicator') : Math.min(7, bibleLv + 1 + Math.floor(getWeaponLevel(p, 'duplicator') / 2));
+            const radius = spd((evolved ? 70 : 42 + bibleLv * 6) * (1 + getWeaponLevel(p, 'lens') * 0.15));
+            for (let i = 0; i < count; i++) {
+              const oa = (p.bibleAngle || 0) + i * (Math.PI * 2 / count);
+              const ox = p.x + Math.cos(oa) * radius;
+              const oy = p.y + Math.sin(oa) * radius;
+              ctx.save();
+              ctx.translate(ox, oy);
+              ctx.rotate(oa + Math.PI / 2);
+              ctx.shadowColor = evolved ? '#c084fc' : '#67e8f9';
+              ctx.shadowBlur = 12;
+              ctx.fillStyle = evolved ? '#8b5cf6' : '#0891b2';
+              ctx.strokeStyle = evolved ? '#ddd6fe' : '#cffafe';
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.roundRect(-7, -10, 14, 20, 3);
+              ctx.fill();
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-4, -4);
+              ctx.lineTo(4, -4);
+              ctx.moveTo(-4, 2);
+              ctx.lineTo(4, 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+
+          if ((p.laurelShields || 0) > 0 || getWeaponLevel(p, 'laurel') > 0) {
+            ctx.save();
+            const evolved = p.tags.has('syn_laurel');
+            const charges = p.laurelShields || 0;
+            ctx.strokeStyle = evolved ? '#fb7185' : '#38bdf8';
+            ctx.shadowColor = evolved ? '#fb7185' : '#38bdf8';
+            ctx.shadowBlur = charges > 0 ? 18 : 5;
+            ctx.globalAlpha = charges > 0 ? 0.65 : 0.25;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < Math.max(1, charges); i++) {
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, 29 + i * 7 + Math.sin(G.current.frame * 0.08 + i) * 2, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
           // Heat circles (aura)
           if (p.aura > 0) {
             ctx.save();
@@ -2000,6 +2482,69 @@ export default function GameCanvas({
             ctx.arc(tr.x, tr.y, b.r * 0.8 * (i / b.trail.length), 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1.0;
+          }
+
+          if (b.weaponKind) {
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(b.angle || 0);
+            ctx.shadowColor = b.col;
+            ctx.shadowBlur = 14;
+            ctx.strokeStyle = b.col;
+            ctx.fillStyle = b.col;
+            ctx.lineWidth = 2;
+
+            if (b.weaponKind === 'dagger' || b.weaponKind === 'shroud') {
+              ctx.beginPath();
+              ctx.moveTo(b.r * 3.4, 0);
+              ctx.lineTo(-b.r * 1.6, -b.r * 0.8);
+              ctx.lineTo(-b.r * 0.7, 0);
+              ctx.lineTo(-b.r * 1.6, b.r * 0.8);
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+              ctx.beginPath();
+              ctx.moveTo(-b.r * 0.6, 0);
+              ctx.lineTo(b.r * 2.5, 0);
+              ctx.stroke();
+            } else if (b.weaponKind === 'scythe') {
+              ctx.beginPath();
+              ctx.arc(0, 0, b.r * 1.8, -1.2, 1.2);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-b.r * 1.5, 0);
+              ctx.quadraticCurveTo(b.r * 0.6, -b.r * 2.4, b.r * 2.3, -b.r * 0.3);
+              ctx.stroke();
+            } else if (b.weaponKind === 'sword') {
+              ctx.beginPath();
+              ctx.moveTo(b.r * 3.6, 0);
+              ctx.lineTo(b.r * 0.6, -b.r * 0.55);
+              ctx.lineTo(-b.r * 1.2, -b.r * 0.25);
+              ctx.lineTo(-b.r * 1.2, b.r * 0.25);
+              ctx.lineTo(b.r * 0.6, b.r * 0.55);
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = '#fff7ed';
+              ctx.beginPath();
+              ctx.moveTo(-b.r, 0);
+              ctx.lineTo(b.r * 3, 0);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              ctx.moveTo(0, -b.r * 1.8);
+              ctx.lineTo(b.r * 0.55, -b.r * 0.55);
+              ctx.lineTo(b.r * 1.8, 0);
+              ctx.lineTo(b.r * 0.55, b.r * 0.55);
+              ctx.lineTo(0, b.r * 1.8);
+              ctx.lineTo(-b.r * 0.55, b.r * 0.55);
+              ctx.lineTo(-b.r * 1.8, 0);
+              ctx.lineTo(-b.r * 0.55, -b.r * 0.55);
+              ctx.closePath();
+              ctx.stroke();
+            }
+
+            ctx.restore();
+            continue;
           }
 
           // Procedural render bullet as highly detailed scifi rocket
