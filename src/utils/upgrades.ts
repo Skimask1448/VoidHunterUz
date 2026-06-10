@@ -40,9 +40,9 @@ const WEAPONS_META: CardMeta[] = [
     name: 'Грави-Аура',
     descriptions: [
       'Разворачивает вокруг корабля кольцо искривленного пространства, наносящее периодический урон.',
-      '+20% к радиусу грави-поля и +25% к его урону.',
+      '+22% к радиусу грави-поля и +46% к его урону.',
       'Пульсации учащаются, поле испускает яркие гравитационные волны.',
-      '+20% к радиусу грави-поля и +30% к его урону.',
+      '+16% к радиусу грави-поля и +40% к его урону.',
       'Поле замедляет и отталкивает врагов на краю сингулярной зоны.'
     ],
     rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
@@ -96,7 +96,7 @@ const WEAPONS_META: CardMeta[] = [
       'Интервал ударов снижен до 1.5 секунд. Бьет трех врагов.',
       'Разряды оставляют короткое электромагнитное поле в точке удара.'
     ],
-    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
+    rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Epic'],
     applyEffect: (p, lv) => {
       p.tags.add('lightning');
       if (lv === 1) p.lightningCd = 0;
@@ -126,7 +126,7 @@ const WEAPONS_META: CardMeta[] = [
       'Запускает две косы. Размер косы увеличен на 25%.',
       'Урон увеличен на 30%. Коса пробивает абсолютно всех врагов.',
       'Запускает три косы.',
-      'Перезарядка косы снижена на 30%.'
+      'Перезарядка косы снижена на ~42%.'
     ],
     rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
     applyEffect: (p, lv) => {
@@ -156,7 +156,7 @@ const WEAPONS_META: CardMeta[] = [
     descriptions: [
       'Периодически призывает столб космической пыли, проходящий по всей высоте экрана.',
       'Ширина столба увеличена на 30%, урон +20%.',
-      'Перезарядка снижена до 3 сек. Столб накладывает на врагов замедление.',
+      'Перезарядка снижена до ~3.4 сек. Столб накладывает на врагов замедление.',
       'Ширина столба увеличена на 25%, урон +30%.',
       'Столб испускает вторичные волны, аннигилируя снаряды врагов.'
     ],
@@ -171,8 +171,8 @@ const WEAPONS_META: CardMeta[] = [
     name: 'Хроно-Ланцет',
     descriptions: [
       'Выпускает временной луч, замораживающий врагов на 1.5 секунды.',
-      'Выпускает два луча в противоположных направлениях. Заморозка на 2 сек.',
-      'Время заморозки увеличено до 3 секунд.',
+      'Выпускает два луча в противоположных направлениях. Заморозка на 1.8 сек.',
+      'Время заморозки увеличено до 2.1 секунд.',
       'Лучи становятся шире на 25%. Перезарядка снижена на 25%.',
       'Замороженные лучами враги временно получают на 15% больше урона.'
     ],
@@ -186,11 +186,11 @@ const WEAPONS_META: CardMeta[] = [
     id: 'laurel',
     name: 'Барьер Эгиды',
     descriptions: [
-      'Создает щит, полностью блокирующий один любой удар. Перезарядка 15 сек.',
-      'Перезарядка барьера снижена до 12 секунд.',
+      'Создает щит, полностью блокирующий один любой удар. Перезарядка ~15 сек.',
+      'Перезарядка барьера снижена до ~13 сек.',
       'Барьер может накапливать до 2 зарядов блокировки.',
-      'Перезарядка барьера снижена до 9 секунд.',
-      'При разрушении барьера испускается волна, отбрасывающая врагов.'
+      'Перезарядка барьера снижена до ~10 сек.',
+      'При разрушении барьера испускается волна, отбрасывающая врагов. Перезарядка ~8 сек.'
     ],
     rarity: ['Rare', 'Rare', 'Epic', 'Epic', 'Legendary'],
     applyEffect: (p, lv) => {
@@ -261,11 +261,11 @@ const PASSIVES_META: CardMeta[] = [
     id: 'regen',
     name: 'Нано-Регенератор',
     descriptions: [
-      'Каждые 3 сек восстанавливает +2 прочности обшивки.',
-      'Восстановление увеличено до +4 прочности каждые 3 сек.',
+      'Каждые 3 сек восстанавливает +3 прочности обшивки.',
       'Восстановление увеличено до +6 прочности каждые 3 сек.',
-      'Восстановление увеличено до +8 прочности каждые 3 сек.',
-      'Восстановление увеличено до +10 прочности каждые 3 сек.'
+      'Восстановление увеличено до +9 прочности каждые 3 сек.',
+      'Восстановление увеличено до +12 прочности каждые 3 сек.',
+      'Восстановление увеличено до +15 прочности каждые 3 сек.'
     ],
     rarity: ['Common', 'Rare', 'Rare', 'Epic', 'Epic'],
     applyEffect: (p, lv) => {
@@ -277,11 +277,11 @@ const PASSIVES_META: CardMeta[] = [
     id: 'reactor',
     name: 'Быстрый Реактор',
     descriptions: [
-      'Снижает интервал стрельбы основного оружия на 12%.',
-      'Снижает интервал стрельбы основного оружия на 24%.',
-      'Снижает интервал стрельбы основного оружия на 36%.',
-      'Снижает интервал стрельбы основного оружия на 48%.',
-      'Снижает интервал стрельбы основного оружия на 60%.'
+      'Снижает интервал стрельбы основного оружия на ~12% (мультипликативно).',
+      'Снижает интервал стрельбы основного оружия на ~22%.',
+      'Снижает интервал стрельбы основного оружия на ~31%.',
+      'Снижает интервал стрельбы основного оружия на ~39%.',
+      'Снижает интервал стрельбы основного оружия на ~47%.'
     ],
     rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
     applyEffect: (p, lv) => {
@@ -383,7 +383,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Базовые ракеты получают самонаведение по ближайшей цели и поворачивают к врагам в полете.',
     onceTag: 'homing',
     requires: [],
-    w: p => p.tags.has('homing') ? 0 : 7,
+    w: p => p.tags.has('homing') ? 0 : 6,
     apply: p => {
       p.tags.add('homing');
       p.bulletSpeed += spd(0.35);
@@ -396,7 +396,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Ракеты взрываются при попадании, оставляя яркую космическую ударную волну по области.',
     onceTag: 'explosive',
     requires: [],
-    w: p => p.tags.has('explosive') ? 0 : 7,
+    w: p => p.tags.has('explosive') ? 0 : 6,
     apply: p => {
       p.tags.add('explosive');
       p.explosionRadius = Math.max(p.explosionRadius || 0, spd(48));
@@ -411,7 +411,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Основное оружие выпускает три ракеты широким космическим веером.',
     onceTag: 'multishot',
     requires: [],
-    w: p => p.tags.has('multishot') ? 0 : 7,
+    w: p => p.tags.has('multishot') ? 0 : 8,
     apply: p => {
       p.tags.add('multishot');
       p.shootRate = Math.max(8, p.shootRate + 2);
@@ -424,7 +424,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: '+2 дополнительные ракеты в очереди основного оружия.',
     onceTag: 'rocket_pack_start',
     requires: [],
-    w: p => p.tags.has('rocket_pack_start') ? 0 : 6,
+    w: p => p.tags.has('rocket_pack_start') ? 0 : 8,
     apply: p => {
       p.tags.add('rocket_pack_start');
       p.extraShots += 2;
@@ -438,7 +438,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Ракеты превращаются в длинные рельсовые снаряды: выше скорость, пробитие и бело-синий след.',
     onceTag: 'rail_rockets',
     requires: [],
-    w: p => p.tags.has('rail_rockets') ? 0 : 5,
+    w: p => p.tags.has('rail_rockets') ? 0 : 4,
     apply: p => {
       p.tags.add('rail_rockets');
       p.bulletSpeed += spd(1.6);
@@ -492,7 +492,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Ракеты тянут ближайших врагов к траектории полета и слегка стягивают их в точку удара.',
     onceTag: 'gravity_rockets',
     requires: [],
-    w: p => p.tags.has('gravity_rockets') ? 0 : 5,
+    w: p => p.tags.has('gravity_rockets') ? 0 : 4,
     apply: p => {
       p.tags.add('gravity_rockets');
       p.bulletSize += spd(0.35);
@@ -505,7 +505,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'При первом попадании ракета распадается на три малых фотонных снаряда.',
     onceTag: 'split_rockets',
     requires: [],
-    w: p => p.tags.has('split_rockets') ? 0 : 5,
+    w: p => p.tags.has('split_rockets') ? 0 : 4,
     apply: p => {
       p.tags.add('split_rockets');
       p.damage += 0.1;
@@ -531,7 +531,7 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Открывает периодический лазерный залп по ближайшим целям, синхронизированный с ракетным компьютером.',
     onceTag: 'laser',
     requires: [],
-    w: p => p.tags.has('laser') ? 0 : 5,
+    w: p => p.tags.has('laser') ? 0 : 4,
     apply: p => {
       p.tags.add('laser');
       p.laserStacks = Math.max(p.laserStacks || 1, 1);
@@ -656,6 +656,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('water_5');
       p.tags.add('syn_water');
+      p.damage += 0.15;
     }
   },
   {
@@ -670,6 +671,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('lightning_5');
       p.tags.add('syn_lightning');
+      p.damage += 0.15;
     }
   },
   {
@@ -700,6 +702,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('scythe_5');
       p.tags.add('syn_scythe');
+      p.damage += 0.2;
     }
   },
   {
@@ -714,6 +717,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('dagger_5');
       p.tags.add('syn_dagger');
+      p.damage += 0.25;
     }
   },
   {
@@ -728,6 +732,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('mana_5');
       p.tags.add('syn_mana');
+      p.damage += 0.15;
     }
   },
   {
@@ -742,6 +747,7 @@ const SYNERGIES: Upgrade[] = [
     apply: p => {
       p.tags.delete('lancet_5');
       p.tags.add('syn_lancet');
+      p.damage += 0.15;
     }
   },
   {

@@ -840,7 +840,7 @@ export default function GameCanvas({
         const base = p.facing - Math.PI / 2;
         for (let i = 0; i < count; i++) {
           const ang = base + rnd(-0.1, 0.1) + (i - (count - 1) / 2) * 0.035;
-          fireCosmicBlade(ang, spd(evolved ? 9.2 : 7.2), spd((evolved ? 4.8 : 3.4 + daggerLv * 0.25) * areaScale), p.damage * (evolved ? 1.2 : 0.8 + daggerLv * 0.18), evolved ? 2 : Math.floor(daggerLv / 2), evolved ? '#e0f2fe' : '#60a5fa', 'dagger');
+          fireCosmicBlade(ang, spd(evolved ? 9.2 : 7.2), spd((evolved ? 4.8 : 3.4 + daggerLv * 0.25) * areaScale), p.damage * (evolved ? 2.0 : 0.8 + daggerLv * 0.18), evolved ? 2 : Math.floor(daggerLv / 2), evolved ? '#e0f2fe' : '#60a5fa', 'dagger');
         }
       }
     }
