@@ -351,7 +351,7 @@ const PASSIVES_META: CardMeta[] = [
     rarity: ['Common', 'Common', 'Rare', 'Rare', 'Epic'],
     applyEffect: (p, lv) => {
       p.tags.add('passive_magnet');
-      p.pickupRange = Math.min(250, p.pickupRange + 25);
+      p.pickupRange = Math.min(450, p.pickupRange + spd(35));
     }
   },
   {
@@ -545,7 +545,13 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Синергия ракет: Антиматерийная БЧ + Веерный Пуск. Взрывы распадаются на шесть малых плазменных снарядов.',
     synergy: true,
     onceTag: 'clusterstorm',
+    currentLevel: 0,
+    nextLevel: 1,
     requires: [needTag('explosive'), needTag('multishot')],
+    synergyReqs: [
+      p => ({ text: 'Антиматерийная БЧ', met: p.tags.has('explosive') }),
+      p => ({ text: 'Веерный Пуск', met: p.tags.has('multishot') }),
+    ],
     w: p => (p.tags.has('explosive') && p.tags.has('multishot') && !p.tags.has('clusterstorm')) ? 10 : 0,
     apply: p => {
       p.tags.add('clusterstorm');
@@ -561,7 +567,13 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Синергия ракет: Грави-Наведение + Рельсовый Ускоритель. За ракетой тянется разрушительный ионный луч.',
     synergy: true,
     onceTag: 'ionlance',
+    currentLevel: 0,
+    nextLevel: 1,
     requires: [needTag('homing'), needTag('rail_rockets')],
+    synergyReqs: [
+      p => ({ text: 'Грави-Наведение', met: p.tags.has('homing') }),
+      p => ({ text: 'Рельсовый Ускоритель', met: p.tags.has('rail_rockets') }),
+    ],
     w: p => (p.tags.has('homing') && p.tags.has('rail_rockets') && !p.tags.has('ionlance')) ? 10 : 0,
     apply: p => {
       p.tags.add('ionlance');
@@ -577,7 +589,13 @@ const ROCKET_MUTATIONS: Upgrade[] = [
     desc: 'Синергия ракет: Грави-Боеголовка + Разделяющиеся Ракеты. Осколки получают притяжение и стягивают врагов в мини-сингулярности.',
     synergy: true,
     onceTag: 'singularity_rockets',
+    currentLevel: 0,
+    nextLevel: 1,
     requires: [needTag('gravity_rockets'), needTag('split_rockets')],
+    synergyReqs: [
+      p => ({ text: 'Грави-Боеголовка', met: p.tags.has('gravity_rockets') }),
+      p => ({ text: 'Разделяющиеся Ракеты', met: p.tags.has('split_rockets') }),
+    ],
     w: p => (p.tags.has('gravity_rockets') && p.tags.has('split_rockets') && !p.tags.has('singularity_rockets')) ? 10 : 0,
     apply: p => {
       p.tags.add('singularity_rockets');
@@ -598,6 +616,9 @@ function populateUpgrades() {
         name: `${meta.name} (Ур. ${lv})`,
         rar: meta.rarity[lv - 1],
         desc: meta.descriptions[lv - 1],
+        currentLevel: lv - 1,
+        nextLevel: lv,
+        statDelta: meta.descriptions[lv - 1],
         requires: lv === 1 ? [] : [p => getWeaponLevel(p, meta.id) === lv - 1],
         w: p => getWeaponLevel(p, meta.id) === lv - 1 ? 8 : 0,
         apply: p => {
@@ -621,7 +642,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Грави-Аура + Реактор Живучести. Вокруг корабля рождается багровая микросингулярность: мощные пульсы урона, притяжение ресурсов и восстановление корпуса.',
     synergy: true,
     onceTag: 'syn_garlic',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'garlic') === 5 && getWeaponLevel(p, 'heart') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Грави-Аура (Ур. 5)', met: getWeaponLevel(p, 'garlic') === 5 }),
+      p => ({ text: 'Реактор Живучести (Ур. 1+)', met: getWeaponLevel(p, 'heart') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'garlic') === 5 && getWeaponLevel(p, 'heart') >= 1 && !p.tags.has('syn_garlic')) ? 10 : 0,
     apply: p => {
       p.tags.delete('garlic_5');
@@ -636,7 +663,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Орбитальные Реликты + Быстрый Реактор. Спутники превращаются в фиолетовое кольцо абсолютной энергии, вращаются со сверхвысокой скоростью и режут все на орбите.',
     synergy: true,
     onceTag: 'syn_bible',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'bible') === 5 && getWeaponLevel(p, 'reactor') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Орбитальные Реликты (Ур. 5)', met: getWeaponLevel(p, 'bible') === 5 }),
+      p => ({ text: 'Быстрый Реактор (Ур. 1+)', met: getWeaponLevel(p, 'reactor') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'bible') === 5 && getWeaponLevel(p, 'reactor') >= 1 && !p.tags.has('syn_bible')) ? 10 : 0,
     apply: p => {
       p.tags.delete('bible_5');
@@ -651,7 +684,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Плазменный Конденсат + Фокусирующая Линза. Синие плазменные туманности медленно смещаются вслед за кораблем, расширяя радиус поражения.',
     synergy: true,
     onceTag: 'syn_water',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'water') === 5 && getWeaponLevel(p, 'lens') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Плазменный Конденсат (Ур. 5)', met: getWeaponLevel(p, 'water') === 5 }),
+      p => ({ text: 'Фокусирующая Линза (Ур. 1+)', met: getWeaponLevel(p, 'lens') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'water') === 5 && getWeaponLevel(p, 'lens') >= 1 && !p.tags.has('syn_water')) ? 10 : 0,
     apply: p => {
       p.tags.delete('water_5');
@@ -666,7 +705,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Ионный Разрядник + Мультипликатор. Каждый разряд бьет дважды и выпускает вторичные дуги перегруженной энергии.',
     synergy: true,
     onceTag: 'syn_lightning',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'lightning') === 5 && getWeaponLevel(p, 'duplicator') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Ионный Разрядник (Ур. 5)', met: getWeaponLevel(p, 'lightning') === 5 }),
+      p => ({ text: 'Мультипликатор (Ур. 1+)', met: getWeaponLevel(p, 'duplicator') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'lightning') === 5 && getWeaponLevel(p, 'duplicator') >= 1 && !p.tags.has('syn_lightning')) ? 10 : 0,
     apply: p => {
       p.tags.delete('lightning_5');
@@ -681,7 +726,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Фотонный Бумеранг + Квантовый Навигатор. Бумеранги заменяются гигантскими сияющими фотонными лезвиями с повышенным шансом критического удара.',
     synergy: true,
     onceTag: 'syn_cross',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'cross') === 5 && getWeaponLevel(p, 'clover') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Фотонный Бумеранг (Ур. 5)', met: getWeaponLevel(p, 'cross') === 5 }),
+      p => ({ text: 'Квантовый Навигатор (Ур. 1+)', met: getWeaponLevel(p, 'clover') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'cross') === 5 && getWeaponLevel(p, 'clover') >= 1 && !p.tags.has('syn_cross')) ? 10 : 0,
     apply: p => {
       p.tags.delete('cross_5');
@@ -697,7 +748,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Плазменная Коса + Звездный Катализатор. Корабль выпускает круговой залп из 8 огромных вращающихся багровых плазменных дуг.',
     synergy: true,
     onceTag: 'syn_scythe',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'scythe') === 5 && getWeaponLevel(p, 'spinach') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Плазменная Коса (Ур. 5)', met: getWeaponLevel(p, 'scythe') === 5 }),
+      p => ({ text: 'Звездный Катализатор (Ур. 1+)', met: getWeaponLevel(p, 'spinach') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'scythe') === 5 && getWeaponLevel(p, 'spinach') >= 1 && !p.tags.has('syn_scythe')) ? 10 : 0,
     apply: p => {
       p.tags.delete('scythe_5');
@@ -712,7 +769,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Вихрь Клинков + Грави-Ускоритель. Корабль выпускает непрерывный поток сверхбыстрых фотонных игл перед собой.',
     synergy: true,
     onceTag: 'syn_dagger',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'dagger') === 5 && getWeaponLevel(p, 'wings') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Вихрь Клинков (Ур. 5)', met: getWeaponLevel(p, 'dagger') === 5 }),
+      p => ({ text: 'Грави-Ускоритель (Ур. 1+)', met: getWeaponLevel(p, 'wings') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'dagger') === 5 && getWeaponLevel(p, 'wings') >= 1 && !p.tags.has('syn_dagger')) ? 10 : 0,
     apply: p => {
       p.tags.delete('dagger_5');
@@ -727,7 +790,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Космический Столб + Притяжатель. Звездный луч расширяется в гигантскую золотую ударную волну, замедляя врагов и притягивая ресурсы.',
     synergy: true,
     onceTag: 'syn_mana',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'mana') === 5 && getWeaponLevel(p, 'magnet') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Космический Столб (Ур. 5)', met: getWeaponLevel(p, 'mana') === 5 }),
+      p => ({ text: 'Притяжатель Ресурсов (Ур. 1+)', met: getWeaponLevel(p, 'magnet') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'mana') === 5 && getWeaponLevel(p, 'magnet') >= 1 && !p.tags.has('syn_mana')) ? 10 : 0,
     apply: p => {
       p.tags.delete('mana_5');
@@ -742,7 +811,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Хроно-Ланцет + Нейтронная Броня. Проецирует хронографический круг: лучи sweep-сканера замораживают врагов и срезают их текущее здоровье.',
     synergy: true,
     onceTag: 'syn_lancet',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'lancet') === 5 && getWeaponLevel(p, 'armor') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Хроно-Ланцет (Ур. 5)', met: getWeaponLevel(p, 'lancet') === 5 }),
+      p => ({ text: 'Нейтронная Броня (Ур. 1+)', met: getWeaponLevel(p, 'armor') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'lancet') === 5 && getWeaponLevel(p, 'armor') >= 1 && !p.tags.has('syn_lancet')) ? 10 : 0,
     apply: p => {
       p.tags.delete('lancet_5');
@@ -757,7 +832,13 @@ const SYNERGIES: Upgrade[] = [
     desc: 'Эволюция: Барьер Эгиды + Нано-Регенератор. Накапливает до 3 зарядов блокировки. При поглощении удара выпускает круговую волну багровых фотонных клинков.',
     synergy: true,
     onceTag: 'syn_laurel',
+    currentLevel: 5,
+    nextLevel: 6,
     requires: [p => getWeaponLevel(p, 'laurel') === 5 && getWeaponLevel(p, 'regen') >= 1],
+    synergyReqs: [
+      p => ({ text: 'Барьер Эгиды (Ур. 5)', met: getWeaponLevel(p, 'laurel') === 5 }),
+      p => ({ text: 'Нано-Регенератор (Ур. 1+)', met: getWeaponLevel(p, 'regen') >= 1 }),
+    ],
     w: p => (getWeaponLevel(p, 'laurel') === 5 && getWeaponLevel(p, 'regen') >= 1 && !p.tags.has('syn_laurel')) ? 10 : 0,
     apply: p => {
       p.tags.delete('laurel_5');
@@ -766,6 +847,53 @@ const SYNERGIES: Upgrade[] = [
     }
   }
 ];
+
+// Fallback reward cards when the player has exhausted normal upgrades
+export const FALLBACK_UPGRADES: Upgrade[] = [
+  {
+    id: 'fallback_repair',
+    name: 'Экстренный Ремонт Корпуса',
+    rar: 'Common',
+    desc: 'Наноботы немедленно восстанавливают +45 ед. прочности корпуса корабля.',
+    statDelta: '+45 HP Корпуса',
+    currentLevel: 0,
+    nextLevel: 1,
+    w: () => 1,
+    apply: (p) => {
+      p.hp = Math.min(p.maxHp, p.hp + 45);
+    }
+  },
+  {
+    id: 'fallback_credits',
+    name: 'Квантовый Контейнер Кредитов',
+    rar: 'Rare',
+    desc: 'Синтез энергетических кристаллов: +250 галактических кредитов для ангара.',
+    statDelta: '+250 Кредитов в банк',
+    currentLevel: 0,
+    nextLevel: 1,
+    w: () => 1,
+    apply: (p) => {
+      p.tags.add('bonus_credits_250');
+    }
+  },
+  {
+    id: 'fallback_shield',
+    name: 'Сверхзарядка Щита',
+    rar: 'Epic',
+    desc: 'Перезаряжает силовой барьер до максимума и увеличивает емкость щита на +1.',
+    statDelta: '+1 Емкость / Полный Щит',
+    currentLevel: 0,
+    nextLevel: 1,
+    w: () => 1,
+    apply: (p) => {
+      p.maxShield = Math.max(1, (p.maxShield || 0) + 1);
+      p.shield = p.maxShield;
+    }
+  }
+];
+
+// Total count of real unique synergies in the game (10 weapon evolutions + 3 rocket synergies = 13)
+export const TOTAL_SYNERGIES_COUNT = 13;
 
 // Populate and add synergies
 populateUpgrades();
@@ -805,5 +933,69 @@ export function pickUpgrades(player: Player): Upgrade[] {
       used.add(pick.id);
     }
   }
+
+  // If upgrades pool is exhausted, offer fallback rewards instead of empty cards
+  let fbIndex = 0;
+  while (picked.length < 3 && fbIndex < FALLBACK_UPGRADES.length) {
+    const fb = FALLBACK_UPGRADES[fbIndex++];
+    if (!used.has(fb.id)) {
+      picked.push(fb);
+      used.add(fb.id);
+    }
+  }
+
   return picked;
+}
+
+export interface ActivePerkInfo {
+  id: string;
+  name: string;
+  level: number;
+  maxLevel: number;
+  isEvolved?: boolean;
+}
+
+export function getPlayerBuild(player: Player): {
+  weapons: ActivePerkInfo[];
+  passives: ActivePerkInfo[];
+  rocketPerks: { id: string; name: string }[];
+} {
+  const weapons: ActivePerkInfo[] = [];
+  for (const w of WEAPONS_META) {
+    const lv = getWeaponLevel(player, w.id);
+    if (lv > 0) {
+      weapons.push({
+        id: w.id,
+        name: w.name,
+        level: lv === 6 ? 5 : lv,
+        maxLevel: 5,
+        isEvolved: lv === 6,
+      });
+    }
+  }
+
+  const passives: ActivePerkInfo[] = [];
+  for (const p of PASSIVES_META) {
+    const lv = getWeaponLevel(player, p.id);
+    if (lv > 0) {
+      passives.push({
+        id: p.id,
+        name: p.name,
+        level: lv === 6 ? 5 : lv,
+        maxLevel: 5,
+      });
+    }
+  }
+
+  const rocketPerks: { id: string; name: string }[] = [];
+  for (const r of ROCKET_MUTATIONS) {
+    if (r.onceTag && player.tags.has(r.onceTag)) {
+      rocketPerks.push({
+        id: r.id,
+        name: r.name,
+      });
+    }
+  }
+
+  return { weapons, passives, rocketPerks };
 }

@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { RunHistoryItem, Skin } from '../types';
 import { UPGRADES } from '../utils/upgrades';
+import { PerkIcon } from '../utils/icons';
 
 interface SecondaryScreensProps {
   initialTab: 'leaderboard' | 'history' | 'codex';
@@ -108,7 +109,7 @@ export default function SecondaryScreens({
               )}
               
               <div className="mt-2 text-[10px] text-zinc-500 bg-zinc-950/30 p-3 rounded-lg border border-zinc-850 text-center font-mono uppercase">
-                🏆 Таблица лидеров Telegram-сообщества синхронизируется через облачные сейвы Telegram Cloud Storage в чат-клиенте.
+                🏆 Личные рекорды и статистика вылетов сохраняются локально на этом устройстве.
               </div>
             </div>
           )}
@@ -130,21 +131,39 @@ export default function SecondaryScreens({
                   return (
                     <div
                       key={i}
-                      className="p-4 bg-zinc-950/40 border border-zinc-800 rounded-xl flex justify-between items-center hover:border-zinc-700/80 transition duration-150"
+                      className={`p-3.5 bg-zinc-950/40 border rounded-xl flex justify-between items-center transition duration-150 ${
+                        run.victory ? 'border-emerald-500/40 bg-emerald-950/10' : 'border-zinc-800 hover:border-zinc-700/80'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-5 h-5 rounded-full ring-2 ring-zinc-850"
+                          className="w-5 h-5 rounded-full ring-2 ring-zinc-850 flex-shrink-0"
                           style={{ background: skin?.col || '#2ed8ff' }}
                         />
                         <div>
-                          <div className="text-sm font-black text-zinc-200">Забег #{runHistory.length - i}</div>
+                          <div className="text-sm font-black text-zinc-200 flex items-center gap-2">
+                            {run.victory ? (
+                              <span className="text-emerald-400 font-bold">🏆 ПОБЕДА: {run.sectorName || 'Сектор'}</span>
+                            ) : (
+                              <span>Забег #{runHistory.length - i}</span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-zinc-400 mt-0.5 font-mono">
                             Волна {run.wave} • {run.score.toLocaleString()} очков • {formattedDate}
                           </div>
+                          {run.upgrades && run.upgrades.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {run.upgrades.slice(0, 7).map((tg, idx) => (
+                                <PerkIcon key={idx} id={tg} size={18} className="rounded border border-zinc-800/80" title={tg} />
+                              ))}
+                              {run.upgrades.length > 7 && (
+                                <span className="text-[10px] text-zinc-500 font-mono self-center">+{run.upgrades.length - 7}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right font-mono">
+                      <div className="text-right font-mono flex-shrink-0 ml-3">
                         <div className="text-xs font-black text-amber-400">+{run.credits} КР.</div>
                         <div className="text-[10px] text-zinc-500 uppercase mt-0.5 font-bold">ЗАРАБОТАНО</div>
                       </div>
@@ -175,24 +194,31 @@ export default function SecondaryScreens({
                   return (
                     <div
                       key={s.id}
-                      className={`p-3.5 rounded-xl border transition-all ${
+                      className={`p-3 rounded-xl border transition-all flex items-center gap-3.5 ${
                         unlocked
                           ? 'border-yellow-500/40 bg-zinc-950 shadow-[inset_0_0_12px_rgba(251,191,36,0.06)]'
                           : 'border-zinc-800/80 bg-zinc-950/25 opacity-60'
                       }`}
                     >
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <h4 className={`text-sm font-black ${unlocked ? 'text-yellow-400' : 'text-zinc-300'}`}>
+                      <PerkIcon
+                        id={s.id}
+                        size={46}
+                        className={`rounded-lg border flex-shrink-0 ${
+                          unlocked ? 'border-yellow-500/50 shadow-md' : 'border-zinc-800 grayscale'
+                        }`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className={`text-sm font-black truncate ${unlocked ? 'text-yellow-400' : 'text-zinc-300'}`}>
                             {unlocked ? '🌟 ' : '🔒 '}{s.name}
                           </h4>
-                          <p className="text-xs text-zinc-450 leading-tight mt-1">{s.desc}</p>
+                          <span className={`text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded font-mono flex-shrink-0 ${
+                            unlocked ? 'bg-yellow-500/25 text-yellow-300' : 'bg-zinc-805 text-zinc-500'
+                          }`}>
+                            {unlocked ? 'ОТКРЫТО' : 'ЗАБЛОК'}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded font-mono ${
-                          unlocked ? 'bg-yellow-500/25 text-yellow-300' : 'bg-zinc-805 text-zinc-500'
-                        }`}>
-                          {unlocked ? 'ОТКРЫТО' : 'ЗАБЛОК'}
-                        </span>
+                        <p className="text-xs text-zinc-400 leading-tight mt-1">{s.desc}</p>
                       </div>
                     </div>
                   );

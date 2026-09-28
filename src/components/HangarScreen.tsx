@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Skin, RocketSkin } from '../types';
+import { ShipIcon, RocketIcon } from '../utils/icons';
 
 interface HangarScreenProps {
   bankCredits: number;
@@ -141,21 +142,28 @@ export default function HangarScreen({
                   <div
                     key={s.id}
                     onClick={() => handleSkinClick(s)}
-                    className={`p-4 rounded-xl border transition-all text-center flex flex-col justify-between cursor-pointer group ${
+                    className={`p-3.5 rounded-xl border transition-all text-center flex flex-col justify-between cursor-pointer group ${
                       isSelected
-                        ? 'bg-zinc-950 border-indigo-500 bento-glow-indigo'
-                        : 'bg-zinc-950/60 border-zinc-800 hover:border-indigo-500/20'
+                        ? 'bg-zinc-950 border-indigo-500 bento-glow-indigo shadow-[0_0_15px_rgba(99,102,241,0.25)]'
+                        : 'bg-zinc-950/60 border-zinc-800 hover:border-indigo-500/30'
                     }`}
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <div
-                        className="w-10 h-10 rounded-full shadow-lg group-hover:scale-110 transition duration-150"
-                        style={{ background: bgGrad, boxShadow: `0 0 10px ${s.col}80` }}
-                      />
+                      <div className="relative">
+                        <ShipIcon
+                          skinId={s.id}
+                          size={56}
+                          className="rounded-xl border border-zinc-700/80 shadow-lg group-hover:scale-105 transition duration-150"
+                        />
+                        <div
+                          className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-2 ring-zinc-900"
+                          style={{ background: bgGrad }}
+                        />
+                      </div>
                       <h4 className="font-bold text-sm text-zinc-100 mt-2">{s.name}</h4>
                       <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5 font-mono">Класс корпуса</p>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-3">
                       {s.owned ? (
                         <div className={`text-xs font-bold py-1.5 rounded-lg font-mono ${
                           isSelected ? 'text-indigo-400 font-black' : 'text-zinc-500 hover:text-zinc-300'
@@ -180,28 +188,22 @@ export default function HangarScreen({
                   <div
                     key={r.id}
                     onClick={() => handleRocketClick(r)}
-                    className={`p-4 rounded-xl border transition-all text-center flex flex-col justify-between cursor-pointer group ${
+                    className={`p-3.5 rounded-xl border transition-all text-center flex flex-col justify-between cursor-pointer group ${
                       isSelected
-                        ? 'bg-zinc-950 border-emerald-500 bento-glow-emerald'
-                        : 'bg-zinc-950/60 border-zinc-800 hover:border-emerald-500/20'
+                        ? 'bg-zinc-950 border-emerald-500 bento-glow-emerald shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                        : 'bg-zinc-950/60 border-zinc-800 hover:border-emerald-500/30'
                     }`}
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl group-hover:scale-110 transition duration-150 border-2 border-zinc-800"
-                        style={{
-                          backgroundColor: r.col + '20',
-                          borderColor: r.col,
-                          color: r.col,
-                          boxShadow: `0 0 8px ${r.col}40`
-                        }}
-                      >
-                        ▲
-                      </div>
+                      <RocketIcon
+                        skinId={r.id}
+                        size={56}
+                        className="rounded-xl border border-zinc-700/80 shadow-lg group-hover:scale-105 transition duration-150"
+                      />
                       <h4 className="font-bold text-sm text-zinc-100 mt-2">{r.name}</h4>
                       <p className="text-[10px] text-zinc-400 mt-1 px-1 line-clamp-2 leading-tight font-sans">{r.desc}</p>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-3">
                       {r.owned ? (
                         <div className={`text-xs font-bold py-1.5 rounded-lg font-mono ${
                           isSelected ? 'text-emerald-450 font-black' : 'text-zinc-500 hover:text-zinc-300'

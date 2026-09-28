@@ -124,6 +124,20 @@ export function drawProceduralRocket(
       fireCol = '#ea580c';
       specCol = '#ffecd2';
       break;
+    case 'nebula_pulse':
+      bodyCol = '#2e1065';
+      finCol = '#c084fc';
+      noseCol = '#e879f9';
+      fireCol = '#f472b6';
+      specCol = '#fdf4ff';
+      break;
+    case 'singularity_core':
+      bodyCol = '#050505';
+      finCol = '#f43f5e';
+      noseCol = '#fb7185';
+      fireCol = '#fbbf24';
+      specCol = '#ffffff';
+      break;
     case 'classic':
     default:
       bodyCol = '#1e293b';

@@ -4,35 +4,93 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GameState, Enemy, Bullet, EnemyBullet, Gem, Particle, LightningBolt, Player, Skin, RocketSkin } from '../types';
+import { GameState, Enemy, Bullet, EnemyBullet, Gem, Particle, LightningBolt, Player, Skin, RocketSkin, SectorConfig, SECTORS, DamageNumber, SuperPickup, SuperPickupType, GameSettings } from '../types';
 import { spawnEnemy, spawnMiniBoss, spawnBoss } from '../utils/enemies';
 import { drawProceduralEnemy, drawProceduralRocket, drawProceduralPlayer } from '../utils/textures';
 import { Sound } from '../utils/sound';
+import { Music } from '../utils/music';
 import { spd, getWeaponLevel } from '../utils/upgrades';
 import { SpatialHash } from '../utils/spatial-hash';
+import { PerkIcon, BossIcon, getShipIcon, getBossIcon } from '../utils/icons';
+
+// Simple random coordinate ranges support
+const rnd = (a: number, b: number) => Math.random() * (b - a) + a;
 
 interface GameCanvasProps {
-  state: 'playing' | 'upgrade' | 'pause' | 'menu';
+  state: 'playing' | 'upgrade' | 'pause' | 'menu' | 'sector_victory';
   selectedSkin: string;
   selectedRocketSkin: string;
+  selectedSector: SectorConfig;
   rerollTrigger: number; // Increment to force upgrades re-pick (handled by App.tsx)
   onEndRun: (score: number, wave: number, level: number, credits: number, tags: string[], damage: number, dps: number) => void;
   onLevelUp: (level: number, player: Player) => void;
-  onStateChange: (state: 'playing' | 'upgrade' | 'pause' | 'stats') => void;
+  onStateChange: (state: 'playing' | 'upgrade' | 'pause' | 'stats' | 'sector_victory', player?: Player) => void;
+  onSectorVictory: (sector: SectorConfig, score: number, credits: number) => void;
+  isEndless?: boolean;
   gameTick: number; // Handle state switches
+  settings?: GameSettings;
 }
 
 export default function GameCanvas({
   state,
   selectedSkin,
   selectedRocketSkin,
+  selectedSector,
   rerollTrigger,
   onEndRun,
   onLevelUp,
   onStateChange,
+  onSectorVictory,
+  isEndless = false,
   gameTick,
+  settings,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Store latest callbacks and props in a ref to permanently eliminate stale closures in rAF
+  const callbacksRef = useRef({
+    onEndRun,
+    onLevelUp,
+    onStateChange,
+    onSectorVictory,
+    isEndless,
+    state,
+    selectedSector,
+    settings,
+  });
+  callbacksRef.current = {
+    onEndRun,
+    onLevelUp,
+    onStateChange,
+    onSectorVictory,
+    isEndless,
+    state,
+    selectedSector,
+    settings,
+  };
+
+  // Single-fire transition guards: ensure victory and death trigger exactly once per run
+  const victoryTriggeredRef = useRef(false);
+  const deathTriggeredRef = useRef(false);
+
+  // Preload sprite sheets for high performance canvas rendering
+  const shipSheet = useRef<HTMLImageElement | null>(null);
+  const bossSheet = useRef<HTMLImageElement | null>(null);
+  const pickupSheet = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const sImg = new Image();
+    sImg.src = '/icons/ships_grid.png';
+    shipSheet.current = sImg;
+
+    const bImg = new Image();
+    bImg.src = '/icons/bosses_grid.png';
+    bossSheet.current = bImg;
+
+    const pImg = new Image();
+    pImg.src = '/icons/pickups_grid.png';
+    pickupSheet.current = pImg;
+  }, []);
   
   // Game Loop States stored in Refs for 60fps non-blocking rendering
   const G = useRef<GameState>({
@@ -67,6 +125,16 @@ export default function GameCanvas({
     waterPools: [],
     manaPillars: [],
     lancetBeams: [],
+    currentSector: selectedSector || SECTORS[0],
+    sectorProgress: 0,
+    bossWarningTimer: 0,
+    sectorBoss: null,
+    bossDefeated: false,
+    isEndless: isEndless,
+    asteroids: [],
+    damageNumbers: [],
+    superPickups: [],
+    hitStop: 0,
   });
 
   const keys = useRef<{ [key: string]: boolean }>({});
@@ -89,6 +157,13 @@ export default function GameCanvas({
     xpPercent: 0,
     laserPercent: 0,
     hasLaser: false,
+    sectorProgress: 0,
+    bossActive: false,
+    bossName: '',
+    bossHpPercent: 0,
+    bossWarning: false,
+    isEndless: false,
+    tags: [] as string[],
   });
 
   // Calculate XP threshold
@@ -98,6 +173,7 @@ export default function GameCanvas({
   const resetRun = () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
+    const activeSec = selectedSector || SECTORS[0];
     
     G.current = {
       state: 'playing',
@@ -129,9 +205,20 @@ export default function GameCanvas({
       waterPools: [],
       manaPillars: [],
       lancetBeams: [],
+      currentSector: activeSec,
+      sectorProgress: 0,
+      bossWarningTimer: 0,
+      sectorBoss: null,
+      bossDefeated: false,
+      isEndless: isEndless || false,
+      asteroids: [],
+      damageNumbers: [],
+      superPickups: [],
+      hitStop: 0,
       player: {
         x: width / 2,
         y: height - 120,
+        r: 18,
         col: '#2ed8ff', // Overridden downstream
         hp: 100,
         maxHp: 100,
@@ -147,7 +234,7 @@ export default function GameCanvas({
         chain: 0,
         critChance: 0,
         critDmg: 1.8,
-        pickupRange: spd(56),
+        pickupRange: spd(95),
         armor: 0,
         dodge: 0,
         lifesteal: 0,
@@ -200,20 +287,41 @@ export default function GameCanvas({
       else if (selectedSkin === 'purple') G.current.player.col = '#b06aff';
       else if (selectedSkin === 'paradise') G.current.player.col = '#0ea5e9';
       else if (selectedSkin === 'korean') G.current.player.col = '#ff3b5c';
+      else if (selectedSkin === 'earth_defender') G.current.player.col = '#38bdf8';
+      else if (selectedSkin === 'asteroid_miner') G.current.player.col = '#fb923c';
     }
 
-    // Populate stars
-    for (let i = 0; i < 120; i++) {
+    // Populate sector-themed stars
+    const starCols = activeSec.palette.starColors || ['#ffffff'];
+    for (let i = 0; i < 140; i++) {
       G.current.stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
         r: Math.random() * 1.5 + 0.3,
         s: Math.random() * 0.4 + 0.1,
         a: Math.random() * 0.7 + 0.2,
+        col: starCols[Math.floor(Math.random() * starCols.length)],
       });
     }
 
-    onStateChange('playing');
+    // Populate drifting asteroids for Sector 3
+    if (activeSec.id === 'asteroid') {
+      const astCols = ['#292524', '#44403c', '#57534e', '#78350f'];
+      G.current.asteroids = [];
+      for (let i = 0; i < 12; i++) {
+        G.current.asteroids.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: rnd(14, 38),
+          spd: rnd(0.15, 0.45),
+          rot: Math.random() * Math.PI * 2,
+          rotSpd: rnd(-0.008, 0.008),
+          col: astCols[Math.floor(Math.random() * astCols.length)],
+        });
+      }
+    }
+
+    callbacksRef.current.onStateChange('playing', G.current.player || undefined);
   };
 
   // Run on start
@@ -237,20 +345,52 @@ export default function GameCanvas({
       resetRun();
     }
     
+    const resetInputs = () => {
+      keys.current = {};
+      joyActive.current = false;
+      joystickValue.current = { x: 0, y: 0 };
+      touchId.current = null;
+    };
+
     // Set up Keyboard listens
     const handleKeyDown = (e: KeyboardEvent) => {
-      keys.current[e.key.toLowerCase()] = true;
+      const k = e.key.toLowerCase();
+      keys.current[k] = true;
+      if ((k === 'escape' || k === 'p' || k === 'з') && G.current.state === 'playing') {
+        resetInputs();
+        callbacksRef.current.onStateChange('pause', G.current.player || undefined);
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = false;
     };
 
+    const handleWindowBlur = () => {
+      resetInputs();
+      if (G.current.state === 'playing') {
+        callbacksRef.current.onStateChange('pause', G.current.player || undefined);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        resetInputs();
+        if (G.current.state === 'playing') {
+          callbacksRef.current.onStateChange('pause', G.current.player || undefined);
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [gameTick]);
 
@@ -260,6 +400,12 @@ export default function GameCanvas({
       G.current.state = state;
     }
   }, [state]);
+
+  useEffect(() => {
+    if (G.current) {
+      G.current.isEndless = isEndless;
+    }
+  }, [isEndless]);
 
   const burstAt = (x: number, y: number, col: string, count = 18, power = 3.5) => {
     for (let i = 0; i < count; i++) {
@@ -275,6 +421,50 @@ export default function GameCanvas({
         r: Math.random() * 3 + 1.5,
       });
     }
+  };
+
+  const spawnDamageNumber = (
+    x: number,
+    y: number,
+    amount: number,
+    type: 'normal' | 'crit' | 'freeze' | 'poison' = 'normal',
+    isCrit = false
+  ) => {
+    if (G.current.damageNumbers.length > 85) {
+      G.current.damageNumbers.shift();
+    }
+    const val = Math.round(amount);
+    if (val <= 0) return;
+
+    let text = String(val);
+    let col = '#ffffff';
+    let size = 13;
+    if (type === 'crit' || isCrit) {
+      col = '#facc15';
+      size = 18;
+      text = `${val}!`;
+    } else if (type === 'freeze') {
+      col = '#38bdf8';
+      size = 14;
+      text = `❄ ${val}`;
+    } else if (type === 'poison') {
+      col = '#c084fc';
+      size = 12;
+      text = `☣ ${val}`;
+    }
+
+    G.current.damageNumbers.push({
+      x: x + rnd(-10, 10),
+      y: y + rnd(-8, 4),
+      text,
+      col,
+      size,
+      alpha: 1.0,
+      vx: rnd(-0.6, 0.6),
+      vy: rnd(-2.4, -1.2),
+      life: isCrit ? 45 : 30,
+      isCrit,
+    });
   };
 
   const spawnExplosion = (
@@ -538,19 +728,18 @@ export default function GameCanvas({
       G.current.bullets.push(bullet);
     };
 
-    if (p.tags.has('multishot')) {
-      createRocket(-0.2);
+    // Unified Multishot + extraShots Resolution (Stage 2)
+    // Multishot adds +2 rockets (3 total base volley). extraShots adds additional rockets.
+    const totalRockets = 1 + (p.tags.has('multishot') ? 2 : 0) + (p.extraShots || 0);
+    if (totalRockets === 1) {
       createRocket(0);
-      createRocket(0.2);
     } else {
-      createRocket(0);
-      const shotsTotal = p.extraShots;
-      for (let i = 1; i <= shotsTotal; i++) {
-        setTimeout(() => {
-          if (G.current.state === 'playing') {
-            createRocket(Math.sin(i * 0.5) * 0.1);
-          }
-        }, i * 75);
+      const spreadArc = p.tags.has('multishot')
+        ? Math.min(0.95, 0.35 + (totalRockets - 1) * 0.08)
+        : Math.min(0.65, 0.18 + (totalRockets - 1) * 0.07);
+      for (let i = 0; i < totalRockets; i++) {
+        const offset = -spreadArc / 2 + (i / (totalRockets - 1)) * spreadArc;
+        createRocket(offset);
       }
     }
   };
@@ -570,7 +759,7 @@ export default function GameCanvas({
       }
       
       // Open card overlay screen in parent
-      onLevelUp(G.current.level, p);
+      callbacksRef.current.onLevelUp(G.current.level, p);
     }
   };
 
@@ -1303,6 +1492,10 @@ export default function GameCanvas({
         }
       }
 
+      if (b.weaponKind === 'scythe') {
+        b.angle = (b.angle || 0) + 0.35;
+      }
+
       // Homing calculation
       if (b.homing && G.current.enemies.length > 0) {
         let nearest: Enemy | null = null;
@@ -1350,6 +1543,7 @@ export default function GameCanvas({
           e.poisonTimer--;
           const pdmg = e.poison * (p.tags.has('cryotoxin') ? 2.0 : 1.0);
           e.hp -= pdmg;
+          if (G.current.frame % 15 === 0) spawnDamageNumber(e.x, e.y, pdmg, 'poison');
           if (e.hp <= 0) e.hp = 0;
         }
         continue;
@@ -1359,6 +1553,7 @@ export default function GameCanvas({
         e.poisonTimer--;
         const pdmg = e.poison;
         e.hp -= pdmg;
+        if (G.current.frame % 15 === 0) spawnDamageNumber(e.x, e.y, pdmg, 'poison');
         if (e.hp <= 0) e.hp = 0;
       }
 
@@ -1610,32 +1805,36 @@ export default function GameCanvas({
     }
 
     // Magnet and pickup mechanics
-    if (p.pickupRange > 0) {
-      for (const g of G.current.gems) {
-        if (g.dead) continue;
-        const d = Math.hypot(p.x - g.x, p.y - g.y);
-        if (d < p.pickupRange) {
-          const force = 1 + (1 - d / p.pickupRange) * 2.8;
-          const a = Math.atan2(p.y - g.y, p.x - g.x);
-          g.vx += Math.cos(a) * force;
-          g.vy += Math.sin(a) * force;
-        }
-      }
-    }
+    const pRadius = p.r || 18;
+    const pRange = p.pickupRange || spd(95);
 
     for (const g of G.current.gems) {
+      if (g.dead) continue;
+      const d = Math.hypot(p.x - g.x, p.y - g.y);
+
+      // If magnetized by quantum magnet or within player pickup range
+      if (g.magnetized || d < pRange) {
+        const pullFactor = g.magnetized ? 1.0 : Math.max(0, 1 - d / pRange);
+        const pullSpeed = g.magnetized ? 20 : Math.max(7, spd(6) + pullFactor * spd(10));
+        const a = Math.atan2(p.y - g.y, p.x - g.x);
+        g.vx = g.vx * 0.8 + Math.cos(a) * pullSpeed * 0.28;
+        g.vy = g.vy * 0.8 + Math.sin(a) * pullSpeed * 0.28;
+      }
+
       g.x += g.vx;
       g.y += g.vy;
-      g.vx *= 0.92;
-      g.vy *= 0.92;
+      g.vx *= 0.94;
+      g.vy *= 0.94;
 
-      const d = Math.hypot(p.x - g.x, p.y - g.y);
-      if (d < 16) {
+      // Generous collection radius so moving fast never misses gems
+      const collectDist = Math.max(32, pRadius + g.r + 8);
+      if (d < collectDist) {
         g.dead = true;
         if (g.type === 'xp') {
           gainXp(g.val);
         } else {
-          G.current.runCredits += g.val * p.creditGain;
+          const credMultiplier = G.current.currentSector?.creditMultiplier || 1.0;
+          G.current.runCredits += Math.round(g.val * p.creditGain * credMultiplier);
           
           if (p.tags.has('nanite_repair')) {
             const threshold = p.tags.has('nanoregen_vanguard') ? 0.5 : 0.3;
@@ -1651,6 +1850,82 @@ export default function GameCanvas({
           damageArea(g.x, g.y, spd(52), p.damage * 0.8, g.type === 'credit' ? '#fcd34d' : '#4ade80');
           if (g.type === 'xp' && Math.random() < 0.18) {
             G.current.runCredits += 1;
+          }
+        }
+      }
+    }
+
+    // SuperPickups update, magnet attraction, and pickup collection
+    for (let i = G.current.superPickups.length - 1; i >= 0; i--) {
+      const sp = G.current.superPickups[i];
+      sp.pulseTimer = (sp.pulseTimer || 0) + 0.08;
+      sp.life--;
+      if (sp.life <= 0) {
+        G.current.superPickups.splice(i, 1);
+        continue;
+      }
+
+      const d = Math.hypot(p.x - sp.x, p.y - sp.y);
+
+      // Smooth magnet pull towards player when nearby
+      const superAttractDist = Math.max(140, pRange * 0.9);
+      if (d < superAttractDist) {
+        const pullFactor = Math.max(0, 1 - d / superAttractDist);
+        const pullSpeed = Math.max(4.5, 3 + pullFactor * 8.5);
+        const a = Math.atan2(p.y - sp.y, p.x - sp.x);
+        sp.x += Math.cos(a) * pullSpeed;
+        sp.y += Math.sin(a) * pullSpeed;
+      }
+
+      // Check collision with player (guaranteed valid numbers, no NaN)
+      const collectDist = Math.max(38, pRadius + (sp.r || 16) + 14);
+      if (d < collectDist) {
+        // Collect super-pickup!
+        G.current.superPickups.splice(i, 1);
+        burstAt(sp.x, sp.y, sp.col, 18, 4.5);
+
+        if (sp.type === 'nuke') {
+          // Tactical Nuke: wipe all non-boss enemies and deal heavy hit to bosses
+          Sound.play('exp_large');
+          G.current.screenFlash = { col: '#ffffff', life: 22 };
+          G.current.screenShake = 24;
+          G.current.hitStop = 4;
+          for (const e of G.current.enemies) {
+            if (e.hp <= 0) continue;
+            const wipeDmg = (e.boss || e.miniboss) ? Math.max(300, p.damage * 10) : e.hp + 10;
+            e.hp -= wipeDmg;
+            G.current.totalDamage += wipeDmg;
+            spawnDamageNumber(e.x, e.y, wipeDmg, 'crit', true);
+            burstAt(e.x, e.y, '#ef4444', 8, 3.5);
+          }
+        } else if (sp.type === 'magnet') {
+          // Quantum Magnet: suck all battlefield gems directly to player
+          Sound.play('upgrade');
+          G.current.screenFlash = { col: '#38bdf8', life: 10 };
+          for (const g of G.current.gems) {
+            if (g.dead) continue;
+            g.magnetized = true;
+            const a = Math.atan2(p.y - g.y, p.x - g.x);
+            g.vx = Math.cos(a) * 20;
+            g.vy = Math.sin(a) * 20;
+          }
+        } else if (sp.type === 'heal') {
+          // Nano-Heal: restore 35 HP or 35% maxHp
+          Sound.play('shield');
+          const healAmount = Math.round(Math.max(35, p.maxHp * 0.35));
+          p.hp = Math.min(p.maxHp, p.hp + healAmount);
+          G.current.screenFlash = { col: '#22c55e', life: 12 };
+          burstAt(p.x, p.y, '#22c55e', 14, 3.5);
+          spawnDamageNumber(p.x, p.y - 20, healAmount, 'normal');
+        } else if (sp.type === 'freeze') {
+          // Chrono-Freeze: freeze all enemies on battlefield for 3.5s (210 frames)
+          Sound.play('synergy');
+          G.current.screenFlash = { col: '#38bdf8', life: 14 };
+          for (const e of G.current.enemies) {
+            if (e.hp > 0) {
+              e.frozen = Math.max(e.frozen, 210);
+              burstAt(e.x, e.y, '#38bdf8', 4, 1.8);
+            }
           }
         }
       }
@@ -1677,12 +1952,20 @@ export default function GameCanvas({
         e.hp -= damageDealt;
         G.current.totalDamage += damageDealt;
 
+        const isCrit = b.critHit || false;
+        spawnDamageNumber(e.x, e.y, damageDealt, isCrit ? 'crit' : 'normal', isCrit);
+        if (isCrit) {
+          G.current.hitStop = 3;
+          G.current.screenShake = Math.max(G.current.screenShake, 5);
+        }
+
         if (p.lifesteal > 0) {
           p.hp = Math.min(p.maxHp, p.hp + damageDealt * p.lifesteal * 0.04);
         }
 
         if (p.freeze > 0 && Math.random() < p.freeze) {
           e.frozen = 80;
+          spawnDamageNumber(e.x, e.y, Math.round(damageDealt * 0.4), 'freeze');
         }
         if (p.poison > 0) {
           e.poison = p.poisonDmg;
@@ -1713,6 +1996,7 @@ export default function GameCanvas({
               const chainDmg = damageDealt * 0.65; // 65% of original damage for strong visuals and punchy gameplay
               nextTarget.hp -= chainDmg;
               G.current.totalDamage += chainDmg;
+              spawnDamageNumber(nextTarget.x, nextTarget.y, chainDmg, 'normal');
               
               // Trigger electrical lightning visual link with some random lifetime
               addLightning(currentTarget.x, currentTarget.y, nextTarget.x, nextTarget.y, '#38bdf8', 14);
@@ -1961,6 +2245,55 @@ export default function GameCanvas({
         G.current.score += e.score;
         spawnExplosion(e.x, e.y, e.col, e.type, e.boss || false, e.miniboss || false, e.frozen > 0, e.poisonTimer > 0);
 
+        // Flagship Boss Defeat Handler
+        if (e === G.current.sectorBoss && !G.current.bossDefeated) {
+          G.current.bossDefeated = true;
+          G.current.sectorBoss = null;
+          Music.setBossMode(false);
+          G.current.hitStop = 6;
+          Sound.play('synergy');
+          G.current.screenShake = 28;
+          G.current.screenFlash = { col: '#ffd166', life: 35 };
+
+          // Massive celebratory fountain of loot
+          for (let i = 0; i < 20; i++) {
+            G.current.gems.push({
+              x: e.x + rnd(-40, 40),
+              y: e.y + rnd(-40, 40),
+              vx: rnd(-3.5, 3.5),
+              vy: rnd(-4, 1),
+              val: 15,
+              type: 'credit',
+              r: 8,
+              col: '#fbbf24',
+              dead: false,
+              spin: 0
+            });
+            G.current.gems.push({
+              x: e.x + rnd(-40, 40),
+              y: e.y + rnd(-40, 40),
+              vx: rnd(-3.5, 3.5),
+              vy: rnd(-4, 1),
+              val: 35,
+              type: 'xp',
+              r: 10,
+              col: '#f0abfc',
+              dead: false
+            });
+          }
+
+          if (!victoryTriggeredRef.current) {
+            victoryTriggeredRef.current = true;
+            G.current.bossDefeated = true;
+            G.current.state = 'sector_victory';
+            G.current.eBullets = []; // clear hostile projectiles immediately so player is not hit post-victory
+            Sound.play('victory');
+            Music.setBossMode(false);
+            callbacksRef.current.onSectorVictory(G.current.currentSector, G.current.score, G.current.runCredits);
+            callbacksRef.current.onStateChange('sector_victory', G.current.player || undefined);
+          }
+        }
+
         // Populate visual gems
         const gemColor = e.xpTier === 0 ? '#4ade80' : e.xpTier === 1 ? '#60a5fa' : '#fbbf24';
         const rawPower = e.xpTier === 0 ? 1.5 : e.xpTier === 1 ? 4.5 : 15;
@@ -1992,6 +2325,28 @@ export default function GameCanvas({
           });
         }
 
+        // Rare Battlefield Super-Pickups (Nuke, Magnet, Nano-Heal, Chrono-Freeze)
+        const superChance = (e.boss || e.miniboss) ? 1.0 : 0.018;
+        if (Math.random() < superChance) {
+          const types: SuperPickupType[] = ['nuke', 'magnet', 'heal', 'freeze'];
+          const pickedType = types[Math.floor(Math.random() * types.length)];
+          const colMap = {
+            nuke: '#ef4444',
+            magnet: '#38bdf8',
+            heal: '#22c55e',
+            freeze: '#c084fc',
+          };
+          G.current.superPickups.push({
+            x: e.x,
+            y: e.y,
+            type: pickedType,
+            r: 16,
+            life: 600,
+            col: colMap[pickedType],
+            pulseTimer: Math.random() * Math.PI * 2,
+          });
+        }
+
         // Gravity Singularity vortex pull trigger
         if ((e.miniboss || e.boss || e.xpTier >= 2) && p.tags.has('vortex_pull')) {
           if (G.current.singularities === undefined) {
@@ -2009,6 +2364,62 @@ export default function GameCanvas({
       }
     }
 
+    // Sector Progression & Flagship Trigger
+    if (!G.current.isEndless) {
+      const targetScore = G.current.currentSector?.targetScore || 7000;
+      G.current.sectorProgress = Math.min(100, (G.current.score / targetScore) * 100);
+
+      if (G.current.sectorProgress >= 100 && !G.current.sectorBoss && !G.current.bossDefeated) {
+        if (G.current.bossWarningTimer === undefined || G.current.bossWarningTimer === 0) {
+          G.current.bossWarningTimer = 180; // 3 seconds warning
+          Music.setBossMode(true);
+          Sound.play('synergy');
+        } else if (G.current.bossWarningTimer > 0) {
+          G.current.bossWarningTimer--;
+          if (G.current.bossWarningTimer % 30 === 0) {
+            G.current.screenFlash = { col: '#ef4444', life: 10 };
+            Sound.play('hit');
+          }
+          if (G.current.bossWarningTimer === 0) {
+            // Spawn Sector Flagship
+            const sec = G.current.currentSector || SECTORS[0];
+            G.current.screenFlash = { col: '#ef4444', life: 30 };
+            G.current.screenShake = 24;
+            Sound.play('synergy');
+
+            const bossHp = 200 + sec.targetScore * 0.06;
+            const flagship: Enemy = {
+              x: width / 2,
+              y: -100,
+              type: sec.bossType,
+              hp: bossHp,
+              maxHp: bossHp,
+              r: spd(45),
+              spd: spd(0.55),
+              dmg: 25,
+              score: Math.floor(sec.targetScore * 0.2),
+              col: sec.palette.accentColor,
+              xpTier: 3,
+              creditChance: 1.0,
+              frozen: 0,
+              poison: 0,
+              poisonTimer: 0,
+              angle: Math.PI / 2,
+              boss: true,
+              miniboss: false,
+              frenzy: false,
+              chargeTimer: 0,
+              chargePhase: 'wait',
+              shootCd: 40,
+            };
+
+            G.current.enemies.push(flagship);
+            G.current.sectorBoss = flagship;
+          }
+        }
+      }
+    }
+
     // Wave Progression
     G.current.waveFrame++;
     if (G.current.waveFrame >= 1800) {
@@ -2022,6 +2433,214 @@ export default function GameCanvas({
       } else if (G.current.wave % 3 === 0) {
         G.current.screenFlash = { col: '#fb923c', life: 10 };
         spawnMiniBoss(G.current, width / 2, -100, G.current.wave, spd);
+      }
+    }
+
+    // Stage 4: Interactive Sector Hazards with clear visual telegraphing
+    const activeSec = G.current.currentSector;
+    if (activeSec && !G.current.bossDefeated) {
+      if (G.current.hazardCooldown === undefined) G.current.hazardCooldown = 180;
+      G.current.hazardCooldown--;
+
+      // 1. Nebula: Ion Storm Lightning Strikes
+      if (activeSec.id === 'nebula') {
+        if (!G.current.ionHazards) G.current.ionHazards = [];
+        if (G.current.hazardCooldown <= 0) {
+          G.current.hazardCooldown = Math.floor(rnd(220, 320));
+          const strikeCount = rnd(1, 10) > 4 ? 2 : 1;
+          for (let s = 0; s < strikeCount; s++) {
+            G.current.ionHazards.push({
+              id: Math.random(),
+              x: p.x + rnd(-160, 160),
+              y: p.y + rnd(-160, 160),
+              r: 75,
+              timer: 75,
+              maxTimer: 75,
+              active: false,
+            });
+          }
+        }
+
+        for (let i = G.current.ionHazards.length - 1; i >= 0; i--) {
+          const hz = G.current.ionHazards[i];
+          hz.timer--;
+          if (hz.timer === 0) {
+            hz.active = true;
+            Sound.play('lightning');
+            G.current.screenShake = Math.max(G.current.screenShake, 10);
+            burstAt(hz.x, hz.y, '#c084fc', 20, 4);
+            const dPlayer = Math.hypot(p.x - hz.x, p.y - hz.y);
+            if (dPlayer < hz.r) {
+              const dmg = Math.max(10, Math.floor(20 * (1 - p.armor)));
+              p.hp -= dmg;
+              spawnDamageNumber(p.x, p.y, dmg, 'normal');
+              G.current.screenFlash = { col: '#a855f7', life: 16 };
+            }
+            for (const e of G.current.enemies) {
+              if (e.hp <= 0) continue;
+              if (Math.hypot(e.x - hz.x, e.y - hz.y) < hz.r) {
+                e.hp -= 45;
+                spawnDamageNumber(e.x, e.y, 45, 'crit');
+              }
+            }
+          }
+          if (hz.timer < -15) {
+            G.current.ionHazards.splice(i, 1);
+          }
+        }
+      }
+
+      // 2. Asteroid Belt: Destructible Drifting Meteors
+      else if (activeSec.id === 'asteroid') {
+        if (!G.current.hazardAsteroids) G.current.hazardAsteroids = [];
+        if (G.current.hazardCooldown <= 0) {
+          G.current.hazardCooldown = Math.floor(rnd(180, 260));
+          if (G.current.hazardAsteroids.length < 5) {
+            const spawnSide = Math.random();
+            let sx = rnd(20, width - 20);
+            let sy = -40;
+            if (spawnSide < 0.5) {
+              sx = rnd(0, 1) > 0.5 ? -40 : width + 40;
+              sy = rnd(50, height * 0.7);
+            }
+            const targetX = p.x + rnd(-80, 80);
+            const targetY = p.y + rnd(-80, 80);
+            const angle = Math.atan2(targetY - sy, targetX - sx);
+            const speed = rnd(1.2, 2.2);
+
+            G.current.hazardAsteroids.push({
+              id: Math.random(),
+              x: sx,
+              y: sy,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              r: rnd(22, 34),
+              hp: 35,
+              maxHp: 35,
+              rot: Math.random() * Math.PI * 2,
+              rotSpd: rnd(-0.02, 0.02),
+              col: '#78350f',
+            });
+          }
+        }
+
+        for (let i = G.current.hazardAsteroids.length - 1; i >= 0; i--) {
+          const ast = G.current.hazardAsteroids[i];
+          ast.x += ast.vx;
+          ast.y += ast.vy;
+          ast.rot += ast.rotSpd;
+
+          const distP = Math.hypot(p.x - ast.x, p.y - ast.y);
+          if (distP < ast.r + p.r) {
+            const dmg = Math.max(12, Math.floor(22 * (1 - p.armor)));
+            p.hp -= dmg;
+            spawnDamageNumber(p.x, p.y, dmg, 'normal');
+            G.current.screenShake = Math.max(G.current.screenShake, 14);
+            burstAt(ast.x, ast.y, '#fb923c', 16, 4);
+            Sound.play('exp_small');
+            ast.vx = -ast.vx * 0.8;
+            ast.vy = -ast.vy * 0.8;
+            ast.hp -= 20;
+          }
+
+          for (let bIdx = G.current.bullets.length - 1; bIdx >= 0; bIdx--) {
+            const b = G.current.bullets[bIdx];
+            if (Math.hypot(b.x - ast.x, b.y - ast.y) < ast.r + b.r) {
+              ast.hp -= b.dmg * 20;
+              spawnDamageNumber(ast.x, ast.y, Math.round(b.dmg * 20), 'normal');
+              burstAt(b.x, b.y, '#fdba74', 4, 2);
+              if (!b.pierce || b.pierce <= 0) {
+                G.current.bullets.splice(bIdx, 1);
+              } else {
+                b.pierce--;
+              }
+            }
+          }
+
+          if (ast.hp <= 0) {
+            Sound.play('exp_small');
+            burstAt(ast.x, ast.y, '#fb923c', 22, 5);
+            G.current.gems.push({
+              x: ast.x,
+              y: ast.y,
+              vx: rnd(-1, 1),
+              vy: rnd(-1, 1),
+              val: 5,
+              type: 'xp',
+              r: 6,
+              col: '#fb923c',
+              dead: false,
+            });
+            G.current.hazardAsteroids.splice(i, 1);
+            continue;
+          }
+
+          if (ast.x < -100 || ast.x > width + 100 || ast.y < -100 || ast.y > height + 100) {
+            G.current.hazardAsteroids.splice(i, 1);
+          }
+        }
+      }
+
+      // 3. Singularity: Gravitational Micro-Vortices
+      else if (activeSec.id === 'singularity') {
+        if (!G.current.vortexHazards) G.current.vortexHazards = [];
+        if (G.current.hazardCooldown <= 0) {
+          G.current.hazardCooldown = Math.floor(rnd(360, 480));
+          if (G.current.vortexHazards.length < 2) {
+            G.current.vortexHazards.push({
+              id: Math.random(),
+              x: p.x + rnd(-140, 140),
+              y: p.y + rnd(-140, 140),
+              r: 100,
+              timer: 90,
+              maxTimer: 90,
+              pullLife: 180,
+              active: false,
+            });
+          }
+        }
+
+        for (let i = G.current.vortexHazards.length - 1; i >= 0; i--) {
+          const vx = G.current.vortexHazards[i];
+          if (vx.timer > 0) {
+            vx.timer--;
+            if (vx.timer === 0) {
+              vx.active = true;
+              Sound.play('water_splash');
+            }
+          } else if (vx.active) {
+            vx.pullLife--;
+            const dp = Math.hypot(vx.x - p.x, vx.y - p.y);
+            if (dp < vx.r + 50 && dp > 5) {
+              const pullForce = (1 - dp / (vx.r + 50)) * 1.6;
+              const ang = Math.atan2(vx.y - p.y, vx.x - p.x);
+              p.x += Math.cos(ang) * pullForce;
+              p.y += Math.sin(ang) * pullForce;
+
+              if (dp < 25 && G.current.frame % 15 === 0) {
+                const dmg = 4;
+                p.hp -= dmg;
+                spawnDamageNumber(p.x, p.y, dmg, 'normal');
+              }
+            }
+
+            for (const e of G.current.enemies) {
+              if (e.hp <= 0 || e.boss) continue;
+              const de = Math.hypot(vx.x - e.x, vx.y - e.y);
+              if (de < vx.r) {
+                const ePull = (1 - de / vx.r) * 1.2;
+                const eAng = Math.atan2(vx.y - e.y, vx.x - e.x);
+                e.x += Math.cos(eAng) * ePull;
+                e.y += Math.sin(eAng) * ePull;
+              }
+            }
+
+            if (vx.pullLife <= 0) {
+              burstAt(vx.x, vx.y, '#f43f5e', 25, 4);
+              G.current.vortexHazards.splice(i, 1);
+            }
+          }
+        }
       }
     }
 
@@ -2047,12 +2666,15 @@ export default function GameCanvas({
     });
 
     const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|Telegram/i.test(navigator.userAgent);
-    const maxParticles = isMobile ? 80 : 200;
+    const particlesSetting = callbacksRef.current.settings?.particlesLevel ?? 'high';
+    const pMultiplier = particlesSetting === 'low' ? 0.35 : particlesSetting === 'medium' ? 0.65 : 1.0;
+    const maxParticles = Math.floor((isMobile ? 80 : 200) * pMultiplier);
     if (G.current.particles.length > maxParticles) {
       G.current.particles.splice(0, G.current.particles.length - maxParticles);
     }
 
     // Handle structural UI updates hook
+    const activeBoss = G.current.sectorBoss;
     setHudInfo({
       score: G.current.score,
       wave: G.current.wave,
@@ -2062,11 +2684,18 @@ export default function GameCanvas({
       xpPercent: Math.min(100, (G.current.xp / G.current.xpNext) * 100),
       laserPercent: p.tags.has('laser') ? Math.min(100, ((180 - (p.laserCd || 0)) / 180) * 100) : 0,
       hasLaser: p.tags.has('laser'),
+      sectorProgress: G.current.sectorProgress,
+      bossActive: !!activeBoss && activeBoss.hp > 0,
+      bossName: G.current.currentSector?.bossName || 'ФЛАГМАН',
+      bossHpPercent: activeBoss && activeBoss.maxHp ? Math.max(0, Math.min(100, (activeBoss.hp / activeBoss.maxHp) * 100)) : 0,
+      bossWarning: (G.current.bossWarningTimer || 0) > 0,
+      isEndless: G.current.isEndless,
+      tags: Array.from(p.tags),
     });
   };
 
   const checkDeaths = (p: Player) => {
-    if (p.hp <= 0) {
+    if (p.hp <= 0 && !deathTriggeredRef.current && !victoryTriggeredRef.current) {
       if (p.tags.has('secondwind')) {
         p.hp = Math.floor(p.maxHp * 0.5);
         p.tags.delete('secondwind');
@@ -2074,12 +2703,15 @@ export default function GameCanvas({
         Sound.play('synergy');
         burstAt(p.x, p.y, '#ffd166', 30, 6);
       } else {
+        deathTriggeredRef.current = true;
+        G.current.state = 'stats';
         Sound.play('gameover');
         // Game Over! Dispatch stats payload
         const length = (Date.now() - G.current.runStartTime) / 1000;
         const dps = length > 0 ? Math.floor(G.current.totalDamage / length) : 0;
         
-        onEndRun(
+        Music.setBossMode(false);
+        callbacksRef.current.onEndRun(
           G.current.score,
           G.current.wave,
           G.current.level,
@@ -2089,16 +2721,26 @@ export default function GameCanvas({
           dps
         );
 
-        onStateChange('stats');
+        callbacksRef.current.onStateChange('stats', p);
       }
     }
   };
 
-  // High fidelity canvas drawing loop
+  // High fidelity canvas drawing loop (Fixed 60Hz simulation timestep)
   useEffect(() => {
     let animId: number;
+    const FIXED_STEP = 1000 / 60; // 16.6667 ms per simulation step
+    const MAX_DELTA = 100; // max 100ms accumulation to prevent spiral of death upon returning from tab
+    let lastFrameTime = performance.now();
+    let accumulator = 0;
 
-    const processFrame = () => {
+    const processFrame = (currentTime: number) => {
+      const now = currentTime || performance.now();
+      let deltaTime = now - lastFrameTime;
+      lastFrameTime = now;
+      if (deltaTime < 0) deltaTime = 0;
+      if (deltaTime > MAX_DELTA) deltaTime = MAX_DELTA;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -2127,35 +2769,318 @@ export default function GameCanvas({
       const width = canvas.width;
       const height = canvas.height;
 
-      // Core mechanics logic
+      // Core simulation logic (Fixed 60Hz step independent of screen refresh rate)
       if (G.current.state === 'playing') {
-        updateGame(width, height);
+        accumulator += deltaTime;
+        while (accumulator >= FIXED_STEP) {
+          if (G.current.hitStop > 0) {
+            G.current.hitStop--;
+          } else {
+            updateGame(width, height);
+          }
+          accumulator -= FIXED_STEP;
+        }
+      } else {
+        accumulator = 0;
       }
 
-      // Draw routine
-      ctx.fillStyle = '#05070b';
+      // Draw Sector-themed Space Background
+      const sec = G.current.currentSector || SECTORS[0];
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, sec.palette.bgGradientTop);
+      bgGrad.addColorStop(1, sec.palette.bgGradientBottom);
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
+
+      // Sector-specific Celestial Background elements
+      if (sec.id === 'earth') {
+        // Earth horizon in background
+        ctx.save();
+        const earthY = height + width * 0.55;
+        const earthR = width * 0.92;
+
+        // Atmosphere glow
+        const atmGrad = ctx.createRadialGradient(width / 2, earthY, earthR * 0.88, width / 2, earthY, earthR * 1.06);
+        atmGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
+        atmGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.16)');
+        atmGrad.addColorStop(0.85, 'rgba(56, 189, 248, 0.32)');
+        atmGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = atmGrad;
+        ctx.beginPath();
+        ctx.arc(width / 2, earthY, earthR * 1.06, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Earth surface
+        const surfGrad = ctx.createRadialGradient(width / 2, earthY, earthR * 0.3, width / 2, earthY, earthR);
+        surfGrad.addColorStop(0, '#064e3b');
+        surfGrad.addColorStop(0.35, '#0369a1');
+        surfGrad.addColorStop(0.7, '#075985');
+        surfGrad.addColorStop(0.95, '#0c4a6e');
+        surfGrad.addColorStop(1, '#082f49');
+        ctx.fillStyle = surfGrad;
+        ctx.beginPath();
+        ctx.arc(width / 2, earthY, earthR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      } else if (sec.id === 'nebula') {
+        // Glowing Omega Nebula gas clouds
+        ctx.save();
+        const g1 = ctx.createRadialGradient(width * 0.25, height * 0.35, 30, width * 0.25, height * 0.35, width * 0.55);
+        g1.addColorStop(0, 'rgba(192, 132, 252, 0.18)');
+        g1.addColorStop(0.5, 'rgba(232, 121, 249, 0.08)');
+        g1.addColorStop(1, 'transparent');
+        ctx.fillStyle = g1;
+        ctx.beginPath();
+        ctx.arc(width * 0.25, height * 0.35, width * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+
+        const g2 = ctx.createRadialGradient(width * 0.75, height * 0.65, 40, width * 0.75, height * 0.65, width * 0.6);
+        g2.addColorStop(0, 'rgba(244, 114, 182, 0.15)');
+        g2.addColorStop(0.6, 'rgba(168, 85, 247, 0.06)');
+        g2.addColorStop(1, 'transparent');
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.arc(width * 0.75, height * 0.65, width * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (sec.id === 'asteroid' && G.current.asteroids) {
+        // Drifting background asteroids
+        ctx.save();
+        for (const ast of G.current.asteroids) {
+          ast.y += ast.spd;
+          ast.rot += ast.rotSpd;
+          if (ast.y > height + 50) {
+            ast.y = -50;
+            ast.x = Math.random() * width;
+          }
+          ctx.save();
+          ctx.translate(ast.x, ast.y);
+          ctx.rotate(ast.rot);
+          ctx.fillStyle = ast.col;
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          const sides = 6;
+          for (let i = 0; i < sides; i++) {
+            const a = (i / sides) * Math.PI * 2;
+            const r = ast.r * (0.8 + ((i % 2) * 0.35));
+            const ax = Math.cos(a) * r;
+            const ay = Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(ax, ay);
+            else ctx.lineTo(ax, ay);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.restore();
+      } else if (sec.id === 'singularity') {
+        // Supermassive Black Hole with fiery accretion disk
+        ctx.save();
+        const bhX = width * 0.82;
+        const bhY = height * 0.22;
+        const bhR = spd(32);
+        const time = G.current.frame * 0.02;
+
+        const diskGrad = ctx.createRadialGradient(bhX, bhY, bhR * 0.9, bhX, bhY, bhR * 3.2);
+        diskGrad.addColorStop(0, 'rgba(251, 146, 60, 0)');
+        diskGrad.addColorStop(0.25, 'rgba(244, 63, 94, 0.45)');
+        diskGrad.addColorStop(0.6, 'rgba(251, 191, 36, 0.25)');
+        diskGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = diskGrad;
+        ctx.beginPath();
+        ctx.arc(bhX, bhY, bhR * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(bhX, bhY);
+        ctx.rotate(Math.PI / 6 + Math.sin(time * 0.5) * 0.05);
+        ctx.scale(1, 0.35);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, bhR * 2.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Event Horizon
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(bhX, bhY, bhR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // Camera screen shake calculations
       ctx.save();
+      const shakeFactor = callbacksRef.current.settings?.shakeIntensity ?? 1.0;
       if (G.current.screenShake > 0.1 && G.current.state === 'playing') {
-        const shakeX = (Math.random() * 2 - 1) * G.current.screenShake;
-        const shakeY = (Math.random() * 2 - 1) * G.current.screenShake;
+        const shakeX = (Math.random() * 2 - 1) * G.current.screenShake * shakeFactor;
+        const shakeY = (Math.random() * 2 - 1) * G.current.screenShake * shakeFactor;
         ctx.translate(shakeX, shakeY);
         G.current.screenShake *= 0.9;
       }
 
-      // Draw background stars and scroll them down gently
+      // Draw background stars with sector colors
       for (const s of G.current.stars) {
         s.y += s.s * 1.5;
         if (s.y > height) {
           s.y = 0;
           s.x = Math.random() * width;
         }
-        ctx.fillStyle = `rgba(255, 255, 255, ${s.a})`;
+        ctx.fillStyle = s.col || `rgba(255, 255, 255, ${s.a})`;
+        ctx.globalAlpha = s.a;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Render Sector Hazards (Stage 4)
+      if (G.current.state !== 'menu') {
+        // 1. Nebula Ion Storm Strikes
+        for (const hz of G.current.ionHazards || []) {
+          ctx.save();
+          if (hz.timer > 0) {
+            const progress = hz.timer / hz.maxTimer;
+            const pulse = 0.5 + Math.sin(G.current.frame * 0.2) * 0.25;
+            
+            ctx.fillStyle = `rgba(192, 132, 252, ${0.08 * pulse})`;
+            ctx.beginPath();
+            ctx.arc(hz.x, hz.y, hz.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = `rgba(192, 132, 252, ${0.4 + pulse * 0.4})`;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.arc(hz.x, hz.y, hz.r, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(hz.x, hz.y, hz.r, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2);
+            ctx.stroke();
+
+            ctx.font = '900 10px "Exo 2", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#e9d5ff';
+            ctx.fillText('⚡ ИОННЫЙ УДАР', hz.x, hz.y);
+          } else if (hz.active) {
+            ctx.strokeStyle = '#f3e8ff';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#c084fc';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(hz.x, 0);
+            ctx.lineTo(hz.x, hz.y);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(233, 213, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(hz.x, hz.y, hz.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // 2. Asteroid Belt: Destructible Drifting Meteors
+        for (const ast of G.current.hazardAsteroids || []) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.moveTo(ast.x, ast.y);
+          ctx.lineTo(ast.x + ast.vx * 70, ast.y + ast.vy * 70);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.translate(ast.x, ast.y);
+          ctx.rotate(ast.rot);
+          ctx.fillStyle = '#44403c';
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          const sides = 7;
+          for (let i = 0; i < sides; i++) {
+            const a = (i / sides) * Math.PI * 2;
+            const r = ast.r * (0.8 + ((i % 3) * 0.15));
+            const px = Math.cos(a) * r;
+            const py = Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          ctx.save();
+          const hpPct = Math.max(0, ast.hp / ast.maxHp);
+          const barW = ast.r * 1.5;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(ast.x - barW / 2, ast.y - ast.r - 8, barW, 4);
+          ctx.fillStyle = '#f97316';
+          ctx.fillRect(ast.x - barW / 2, ast.y - ast.r - 8, barW * hpPct, 4);
+          ctx.restore();
+        }
+
+        // 3. Singularity Gravitational Micro-Vortices
+        for (const vx of G.current.vortexHazards || []) {
+          ctx.save();
+          if (vx.timer > 0) {
+            const pulse = 0.5 + Math.sin(G.current.frame * 0.25) * 0.3;
+            ctx.fillStyle = `rgba(244, 63, 94, ${0.07 * pulse})`;
+            ctx.beginPath();
+            ctx.arc(vx.x, vx.y, vx.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = `rgba(244, 63, 94, ${0.5 + pulse * 0.4})`;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.arc(vx.x, vx.y, vx.r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.font = '900 10px "Exo 2", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fda4af';
+            ctx.fillText('⚠️ ГРАВИ-ВОЗМУЩЕНИЕ', vx.x, vx.y);
+          } else if (vx.active) {
+            const spin = G.current.frame * 0.08;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+            ctx.beginPath();
+            ctx.arc(vx.x, vx.y, vx.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#fb7185';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(vx.x, vx.y, 22 + Math.sin(spin) * 4, spin, spin + Math.PI * 1.5);
+            ctx.stroke();
+
+            ctx.fillStyle = '#050106';
+            ctx.beginPath();
+            ctx.arc(vx.x, vx.y, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
 
       // Render items logic
@@ -2504,8 +3429,22 @@ export default function GameCanvas({
             ctx.globalAlpha = 1.0;
           }
 
-          // Draw space-ships procedurally
-          drawProceduralPlayer(ctx, p, G.current.frame);
+          // Draw player starship (using high-res sprite sheet when ready, fallback to procedural)
+          if (shipSheet.current && shipSheet.current.complete) {
+            const coord = getShipIcon(selectedSkin);
+            const drawSize = 46;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.facing); // sprite already faces upward, aligned with p.facing
+            ctx.drawImage(
+              shipSheet.current,
+              coord.col * 418, coord.row * 418, 418, 418,
+              -drawSize / 2, -drawSize / 2, drawSize, drawSize
+            );
+            ctx.restore();
+          } else {
+            drawProceduralPlayer(ctx, p, G.current.frame);
+          }
 
           // Shield sphere overlay
           if (p.shield > 0) {
@@ -2557,12 +3496,32 @@ export default function GameCanvas({
               ctx.lineTo(b.r * 2.5, 0);
               ctx.stroke();
             } else if (b.weaponKind === 'scythe') {
+              // Glowing circular whirlwind trail
               ctx.beginPath();
-              ctx.arc(0, 0, b.r * 1.8, -1.2, 1.2);
+              ctx.arc(0, 0, b.r * 1.8, 0, Math.PI * 2);
+              ctx.strokeStyle = `${b.col}44`;
+              ctx.lineWidth = 1.5;
               ctx.stroke();
+
+              // Scythe staff / handle
+              ctx.strokeStyle = '#e2e8f0';
+              ctx.lineWidth = 2.5;
               ctx.beginPath();
               ctx.moveTo(-b.r * 1.5, 0);
-              ctx.quadraticCurveTo(b.r * 0.6, -b.r * 2.4, b.r * 2.3, -b.r * 0.3);
+              ctx.lineTo(b.r * 1.5, 0);
+              ctx.stroke();
+
+              // Curved razor crescent blade
+              ctx.strokeStyle = b.col;
+              ctx.fillStyle = `${b.col}cc`;
+              ctx.lineWidth = 3.5;
+              ctx.beginPath();
+              ctx.arc(b.r * 0.9, 0, b.r * 1.6, -Math.PI * 0.55, Math.PI * 0.3);
+              ctx.stroke();
+
+              // Opposite hook blade
+              ctx.beginPath();
+              ctx.arc(-b.r * 0.9, 0, b.r * 0.9, Math.PI * 0.45, Math.PI * 1.15);
               ctx.stroke();
             } else if (b.weaponKind === 'sword') {
               ctx.beginPath();
@@ -2617,9 +3576,70 @@ export default function GameCanvas({
           ctx.fill();
         }
 
-        // Procedural Spaceships of space invaders (Enemies)
+        // Procedural Spaceships of space invaders (Enemies) and Flagship Bosses
         for (const e of G.current.enemies) {
-          drawProceduralEnemy(ctx, e, G.current.frame);
+          // Telegraphed Attack indicator (laser aim lines before sudden dash/charge)
+          if (e.type === 'charger' && e.chargePhase === 'wind') {
+            ctx.save();
+            const aimAng = Math.atan2(e.chargeVy || 0, e.chargeVx || 0);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+            ctx.lineWidth = 2.2;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = -G.current.frame * 2.5;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y);
+            ctx.lineTo(e.x + Math.cos(aimAng) * 500, e.y + Math.sin(aimAng) * 500);
+            ctx.stroke();
+
+            // Pulsing target reticle along trajectory
+            const reticleDist = 200 + Math.sin(G.current.frame * 0.3) * 20;
+            const rx = e.x + Math.cos(aimAng) * reticleDist;
+            const ry = e.y + Math.sin(aimAng) * reticleDist;
+            ctx.strokeStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(rx, ry, 7, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          } else if (e.type === 'dasher' && (e.dashTimer || 0) >= 20 && (e.dashTimer || 0) < 35) {
+            ctx.save();
+            const dAng = e.dashAngle ?? (G.current.player ? Math.atan2(G.current.player.y - e.y, G.current.player.x - e.x) : 0);
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.8)';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([6, 5]);
+            ctx.lineDashOffset = -G.current.frame * 2;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y);
+            ctx.lineTo(e.x + Math.cos(dAng) * 380, e.y + Math.sin(dAng) * 380);
+            ctx.stroke();
+            ctx.restore();
+          } else if (e.boss && e.shootCd && e.shootCd > 30 && G.current.player) {
+            ctx.save();
+            const toP = Math.atan2(G.current.player.y - e.y, G.current.player.x - e.x);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([12, 8]);
+            ctx.lineDashOffset = -G.current.frame * 3;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y);
+            ctx.lineTo(e.x + Math.cos(toP) * 600, e.y + Math.sin(toP) * 600);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          if (e.boss && bossSheet.current && bossSheet.current.complete) {
+            const coord = getBossIcon(G.current.currentSector?.id || 'earth');
+            const bSize = e.r * 2.5;
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.drawImage(
+              bossSheet.current,
+              coord.col * 418, coord.row * 418, 418, 418,
+              -bSize / 2, -bSize / 2, bSize, bSize
+            );
+            ctx.restore();
+          } else {
+            drawProceduralEnemy(ctx, e, G.current.frame);
+          }
 
           // Drawing enemy floating text, wave modifiers, or simple HP bars
           if (e.hp < e.maxHp) {
@@ -2641,31 +3661,100 @@ export default function GameCanvas({
             ctx.shadowColor = g.col;
             ctx.shadowBlur = 8;
           }
-          ctx.fillStyle = g.col;
-          
-          if (g.type === 'credit') {
-            g.spin = (g.spin || 0) + 0.1;
-            const sizeX = Math.abs(Math.sin(g.spin));
-            ctx.translate(g.x, g.y);
-            ctx.scale(sizeX, 1);
+          if (pickupSheet.current && pickupSheet.current.complete) {
+            let col = 0, row = 0;
+            if (g.type === 'credit') {
+              col = 0; row = 1; // golden credit chip
+            } else if (g.val >= 10) {
+              col = 2; row = 0; // purple star crystal
+            } else if (g.val >= 3) {
+              col = 1; row = 0; // green bio-crystal
+            } else {
+              col = 0; row = 0; // blue quantum crystal
+            }
+            const pSize = Math.max(16, g.r * 2.8);
+            ctx.drawImage(
+              pickupSheet.current,
+              col * 418, row * 418, 418, 418,
+              g.x - pSize / 2, g.y - pSize / 2, pSize, pSize
+            );
+          } else {
+            ctx.fillStyle = g.col;
+            if (g.type === 'credit') {
+              g.spin = (g.spin || 0) + 0.1;
+              const sizeX = Math.abs(Math.sin(g.spin));
+              ctx.translate(g.x, g.y);
+              ctx.scale(sizeX, 1);
+              ctx.beginPath();
+              ctx.arc(0, 0, g.r, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#0f172a';
+              ctx.font = 'bold 7px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('$', 0, 0);
+            } else {
+              // Draw diamond crystals
+              ctx.translate(g.x, g.y);
+              ctx.beginPath();
+              ctx.moveTo(0, -g.r);
+              ctx.lineTo(g.r * 0.7, 0);
+              ctx.lineTo(0, g.r);
+              ctx.lineTo(-g.r * 0.7, 0);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+
+        // Rare Battlefield Super-Pickups rendering
+        for (const sp of G.current.superPickups) {
+          ctx.save();
+          const bob = Math.sin(sp.pulseTimer) * 3;
+          const px = sp.x;
+          const py = sp.y + bob;
+
+          // Pulsing underglow ring
+          const ringPulse = 1 + Math.sin(sp.pulseTimer * 2) * 0.22;
+          ctx.beginPath();
+          ctx.arc(px, py, sp.r * 1.35 * ringPulse, 0, Math.PI * 2);
+          ctx.fillStyle = `${sp.col}25`;
+          ctx.fill();
+          ctx.strokeStyle = sp.col;
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+
+          if (pickupSheet.current && pickupSheet.current.complete) {
+            let col = 0;
+            let row = 0;
+            if (sp.type === 'nuke') {
+              col = 2; row = 1;
+            } else if (sp.type === 'magnet') {
+              col = 1; row = 2;
+            } else if (sp.type === 'heal') {
+              col = 0; row = 2;
+            } else if (sp.type === 'freeze') {
+              col = 2; row = 2;
+            }
+            const pSize = sp.r * 2.5;
+            ctx.drawImage(
+              pickupSheet.current,
+              col * 418, row * 418, 418, 418,
+              px - pSize / 2, py - pSize / 2, pSize, pSize
+            );
+          } else {
+            // High-tech fallback badge
             ctx.beginPath();
-            ctx.arc(0, 0, g.r, 0, Math.PI * 2);
+            ctx.arc(px, py, sp.r, 0, Math.PI * 2);
+            ctx.fillStyle = sp.col;
             ctx.fill();
-            ctx.fillStyle = '#0f172a';
-            ctx.font = 'bold 7px sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('$', 0, 0);
-          } else {
-            // Draw diamond crystals
-            ctx.translate(g.x, g.y);
-            ctx.beginPath();
-            ctx.moveTo(0, -g.r);
-            ctx.lineTo(g.r * 0.7, 0);
-            ctx.lineTo(0, g.r);
-            ctx.lineTo(-g.r * 0.7, 0);
-            ctx.closePath();
-            ctx.fill();
+            const iconSymbol = sp.type === 'nuke' ? '💣' : sp.type === 'magnet' ? '🧲' : sp.type === 'heal' ? '💊' : '⏳';
+            ctx.fillText(iconSymbol, px, py);
           }
           ctx.restore();
         }
@@ -2720,13 +3809,51 @@ export default function GameCanvas({
           ctx.shadowBlur = 0;
         }
 
+        // Floating Damage Numbers rendering
+        for (let i = G.current.damageNumbers.length - 1; i >= 0; i--) {
+          const dn = G.current.damageNumbers[i];
+          dn.x += dn.vx;
+          dn.y += dn.vy;
+          dn.vy *= 0.93;
+          dn.life--;
+          dn.alpha = Math.max(0, dn.life / (dn.isCrit ? 45 : 30));
+          if (dn.life <= 0) {
+            G.current.damageNumbers.splice(i, 1);
+            continue;
+          }
+
+          ctx.save();
+          ctx.globalAlpha = dn.alpha;
+          const currentSize = dn.isCrit ? dn.size * (1 + Math.sin((45 - dn.life) * 0.25) * 0.2) : dn.size;
+          ctx.font = `900 ${Math.round(currentSize)}px "Exo 2", "Rajdhani", sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // Deep stroke outline for high readability against starry nebula backgrounds
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = dn.isCrit ? 3.5 : 2.5;
+          ctx.strokeText(dn.text, dn.x, dn.y);
+
+          // Glowing colored fill
+          ctx.fillStyle = dn.col;
+          if (useGlow && dn.isCrit) {
+            ctx.shadowColor = dn.col;
+            ctx.shadowBlur = 10;
+          }
+          ctx.fillText(dn.text, dn.x, dn.y);
+          ctx.restore();
+        }
+
         // Onscreen flash notifications
         if (G.current.screenFlash) {
-          const flLife = G.current.screenFlash.life / 15;
-          ctx.fillStyle = G.current.screenFlash.col;
-          ctx.globalAlpha = flLife * 0.25;
-          ctx.fillRect(0, 0, width, height);
-          ctx.globalAlpha = 1.0;
+          const flashesAllowed = callbacksRef.current.settings?.flashEnabled ?? true;
+          if (flashesAllowed) {
+            const flLife = G.current.screenFlash.life / 15;
+            ctx.fillStyle = G.current.screenFlash.col;
+            ctx.globalAlpha = flLife * 0.25;
+            ctx.fillRect(0, 0, width, height);
+            ctx.globalAlpha = 1.0;
+          }
           G.current.screenFlash.life--;
           if (G.current.screenFlash.life <= 0) G.current.screenFlash = null;
         }
@@ -2843,86 +3970,165 @@ export default function GameCanvas({
 
       {/* Modern Sci-Fi HUD overlays */}
       {state === 'playing' && (
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 pointer-events-none flex justify-between select-none font-sans antialiased text-white">
-          {/* Stats cards columns */}
-          <div className="flex flex-col gap-1.5 sm:gap-2 pointer-events-auto">
-            <div className="flex gap-1 sm:gap-2">
-              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
-                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Рекорд</div>
-                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.score}</div>
-              </div>
-              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
-                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Волна</div>
-                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.wave}</div>
-              </div>
-              <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
-                <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Уровень</div>
-                <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.level}</div>
+        <>
+          {/* Incoming Flagship Warning Alert */}
+          {hudInfo.bossWarning && (
+            <div className="fixed inset-x-0 top-1/4 flex flex-col items-center pointer-events-none animate-bounce z-40 px-4">
+              <div className="bg-rose-950/90 border-2 border-rose-500 px-6 py-3.5 rounded-2xl shadow-[0_0_60px_rgba(244,63,94,0.7)] backdrop-blur-md text-center max-w-md">
+                <div className="text-rose-400 font-black tracking-widest text-xs uppercase animate-pulse flex items-center justify-center gap-1.5">
+                  <span>🚨</span> ТРЕВОГА СИСТЕМЫ ОБОРОНЫ <span>🚨</span>
+                </div>
+                <div className="text-lg sm:text-2xl font-black text-white mt-1 uppercase tracking-wide">
+                  ПРИБЛИЖАЕТСЯ ФЛАГМАН СЕКТОРА!
+                </div>
               </div>
             </div>
-            {/* Health hull safety stats */}
-            <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-800 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
-              <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
-                <span>КОРПУС</span>
-                <span className="text-cyan-400">{Math.round(hudInfo.hpPercent)}%</span>
-              </div>
-              <div className="w-full h-1 sm:h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-red-500 via-orange-400 to-emerald-400 transition-all duration-150"
-                  style={{ width: `${hudInfo.hpPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          )}
 
-          {/* Right hand health levels bar columns */}
-          <div className="flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-auto">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="px-1.5 py-1 bg-slate-900/80 border border-slate-750 rounded-lg sm:rounded-xl backdrop-blur-md flex items-center gap-1">
-                <span className="text-yellow-400 text-[10px] sm:text-xs">💎</span>
-                <span className="text-[10px] sm:text-xs font-black text-slate-100">{hudInfo.credits}</span>
+          <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 pointer-events-none flex justify-between items-start select-none font-sans antialiased text-white">
+            {/* Left Column: Stats & Hull */}
+            <div className="flex flex-col gap-1.5 sm:gap-2 pointer-events-auto">
+              <div className="flex gap-1 sm:gap-2">
+                <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                  <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Счёт</div>
+                  <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.score}</div>
+                </div>
+                <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                  <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Волна</div>
+                  <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.wave}</div>
+                </div>
+                <div className="px-2 py-1 bg-slate-900/80 border border-cyan-500/10 rounded-lg sm:rounded-xl backdrop-blur-md">
+                  <div className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Уровень</div>
+                  <div className="text-xs sm:text-sm font-black text-cyan-400">{hudInfo.level}</div>
+                </div>
               </div>
-              
-              <button
-                onClick={() => onStateChange('pause')}
-                className="pointer-events-auto px-2 py-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition cursor-pointer select-none"
-              >
-                ⏸ Пауза
-              </button>
-            </div>
-
-            {/* EXP Progress tracking Bar */}
-            <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-850 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
-              <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
-                <span>ОПЫТ</span>
-                <span className="text-purple-400">{Math.round(hudInfo.xpPercent)}%</span>
-              </div>
-              <div className="w-full h-1 sm:h-2 bg-slate-850 rounded-full overflow-hidden p-0.5 border border-slate-800/40">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-150"
-                  style={{ width: `${hudInfo.xpPercent}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Auxiliary lasers indicators */}
-            {hudInfo.hasLaser && (
-              <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1 sm:p-2 rounded-lg border border-slate-850 backdrop-blur-sm flex items-center justify-between gap-1">
-                <span className="text-[7px] sm:text-[9px] font-black tracking-wider text-slate-400">ЛАЗЕР:</span>
-                <div className="flex-1 h-1 bg-slate-900 rounded-full overflow-hidden">
+              {/* Health hull safety stats */}
+              <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-800 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
+                <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
+                  <span>КОРПУС</span>
+                  <span className="text-cyan-400">{Math.round(hudInfo.hpPercent)}%</span>
+                </div>
+                <div className="w-full h-1 sm:h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
                   <div
-                    className="h-full bg-yellow-400 transition-all"
-                    style={{ width: `${hudInfo.laserPercent}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-red-500 via-orange-400 to-emerald-400 transition-all duration-150"
+                    style={{ width: `${hudInfo.hpPercent}%` }}
                   />
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Center: Sector Progress & Boss Bar */}
+            <div className="flex-1 max-w-[140px] xs:max-w-[200px] sm:max-w-md mx-2 flex flex-col items-center pointer-events-auto">
+              {hudInfo.bossActive ? (
+                /* Flagship Health Bar */
+                <div className="w-full bg-slate-950/90 border border-rose-500/60 rounded-xl p-1.5 sm:p-2 shadow-[0_0_20px_rgba(244,63,94,0.35)] backdrop-blur-md flex items-center gap-2">
+                  <BossIcon
+                    sectorId={selectedSector?.id || 'earth'}
+                    size={36}
+                    className="rounded-lg border border-rose-500/60 shadow-md flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center text-[8px] sm:text-xs font-black tracking-wider text-rose-300">
+                      <span className="truncate flex items-center gap-1">⚠️ {hudInfo.bossName}</span>
+                      <span className="font-mono text-rose-400 ml-1">{Math.round(hudInfo.bossHpPercent)}%</span>
+                    </div>
+                    <div className="w-full h-1.5 sm:h-2.5 bg-slate-900 rounded-full overflow-hidden mt-1 border border-rose-950">
+                      <div
+                        className="h-full bg-gradient-to-r from-orange-500 via-rose-500 to-red-600 transition-all duration-100 shadow-[0_0_10px_#f43f5e]"
+                        style={{ width: `${hudInfo.bossHpPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : hudInfo.isEndless ? (
+                /* Endless Mode Banner */
+                <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                  <span className="text-amber-400 text-xs">♾️</span>
+                  <span className="text-[8px] sm:text-xs font-bold text-amber-300 uppercase tracking-widest font-mono">
+                    БЕСКОНЕЧНЫЙ РЕЖИМ
+                  </span>
+                </div>
+              ) : (
+                /* Sector Progress Bar */
+                <div className="w-full bg-slate-950/85 border border-slate-800/90 rounded-xl p-1.5 sm:p-2 backdrop-blur-sm shadow-lg">
+                  <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300 mb-0.5">
+                    <span className="text-sky-300 flex items-center gap-1 truncate">
+                      <span>🌌</span> {selectedSector?.name || 'Сектор 1'}
+                    </span>
+                    <span className="font-mono text-sky-400 font-bold ml-1">{Math.round(hudInfo.sectorProgress)}%</span>
+                  </div>
+                  <div className="w-full h-1 sm:h-2 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-indigo-500 transition-all duration-150 shadow-[0_0_8px_#38bdf8]"
+                      style={{ width: `${hudInfo.sectorProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Credits, Pause & XP */}
+            <div className="flex flex-col items-end gap-1.5 sm:gap-2 pointer-events-auto">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="px-1.5 py-1 bg-slate-900/80 border border-slate-750 rounded-lg sm:rounded-xl backdrop-blur-md flex items-center gap-1">
+                  <span className="text-yellow-400 text-[10px] sm:text-xs">💎</span>
+                  <span className="text-[10px] sm:text-xs font-black text-slate-100">{hudInfo.credits}</span>
+                </div>
+                
+                <button
+                  onClick={() => onStateChange('pause')}
+                  className="pointer-events-auto px-2 py-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition cursor-pointer select-none"
+                >
+                  ⏸ Пауза
+                </button>
+              </div>
+
+              {/* EXP Progress tracking Bar */}
+              <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1.5 sm:p-2.5 rounded-xl border border-slate-850 backdrop-blur-sm flex flex-col gap-0.5 sm:gap-1">
+                <div className="flex justify-between items-center text-[7px] sm:text-[10px] font-black tracking-widest text-slate-300">
+                  <span>ОПЫТ</span>
+                  <span className="text-purple-400">{Math.round(hudInfo.xpPercent)}%</span>
+                </div>
+                <div className="w-full h-1 sm:h-2 bg-slate-850 rounded-full overflow-hidden p-0.5 border border-slate-800/40">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-150"
+                    style={{ width: `${hudInfo.xpPercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Auxiliary lasers indicators */}
+              {hudInfo.hasLaser && (
+                <div className="w-[110px] xs:w-[130px] sm:w-48 bg-slate-950/80 p-1 sm:p-2 rounded-lg border border-slate-850 backdrop-blur-sm flex items-center justify-between gap-1">
+                  <span className="text-[7px] sm:text-[9px] font-black tracking-wider text-slate-400">ЛАЗЕР:</span>
+                  <div className="flex-1 h-1 bg-slate-900 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-yellow-400 transition-all"
+                      style={{ width: `${hudInfo.laserPercent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+
+          {/* Active Equipment Dock at Bottom */}
+          {hudInfo.tags.length > 0 && (
+            <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-4 z-20 flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-slate-950/75 border border-slate-800/80 rounded-xl backdrop-blur-md max-w-[85vw] overflow-x-auto select-none pointer-events-none shadow-lg">
+              {hudInfo.tags.map((tg, idx) => (
+                <div key={idx} className="relative flex-shrink-0">
+                  <PerkIcon
+                    id={tg}
+                    size={26}
+                    className="rounded-lg border border-slate-700/60 shadow-sm"
+                    title={tg}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
-
-// Simple random coordinate ranges support
-const rnd = (a: number, b: number) => Math.random() * (b - a) + a;
