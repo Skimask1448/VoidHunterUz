@@ -10,13 +10,21 @@ GAME_URL = "https://skimask1448.github.io/VoidHunterUz/"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-leaderboard = {}
+def log_event(msg):
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    line = f"[{ts}] {msg}"
+    print(line, flush=True)
+    try:
+        with open("bot_debug.log", "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception as e:
+        pass
 
 @bot.message_handler(commands=['start', 'game'], chat_types=['private', 'group', 'supergroup'])
 def send_game(message):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Получена команда {message.text} в чате {message.chat.id} (тип: {message.chat.type})", flush=True)
+    log_event(f"Получена команда {message.text} в чате {message.chat.id} (тип: {message.chat.type})")
     
-    # 1. Меню-кнопка (доступна только в ЛС)
+    # В личных сообщениях: настраиваем меню-кнопку и отправляем меню запуска
     if message.chat.type == 'private':
         try:
             bot.set_chat_menu_button(
@@ -24,12 +32,10 @@ def send_game(message):
                 types.MenuButtonWebApp(type="web_app", text="🎮 Играть", web_app=types.WebAppInfo(url=GAME_URL))
             )
         except Exception as e:
-            print(f"Menu button warning: {e}", flush=True)
+            log_event(f"Menu button warning: {e}")
 
-    # 2. Сообщение с кнопками запуска
-    try:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if message.chat.type == 'private':
+        try:
+            markup = types.InlineKeyboardMarkup(row_width=1)
             btn_webapp = types.InlineKeyboardButton("🚀 Играть прямо в Telegram", web_app=types.WebAppInfo(url=GAME_URL))
             btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
             btn_top = types.InlineKeyboardButton("🏆 Таблица рекордов", callback_data="show_top")
@@ -41,29 +47,20 @@ def send_game(message):
                 reply_markup=markup,
                 parse_mode="Markdown"
             )
-        else:
-            # Для групповых чатов (Telegram запрещает web_app кнопку в группах, используем прямую ссылку и переход)
-            btn_play = types.InlineKeyboardButton("🚀 Играть в Telegram", url="https://t.me/voidhunteruzbot?start=play")
-            btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
-            markup.add(btn_play, btn_browser)
-            bot.send_message(
-                message.chat.id,
-                "🌌 **VOID HUNTER** готов к бою в группе!\n"
-                "Нажмите кнопку ниже или играйте через карточку игры:",
-                reply_markup=markup
-            )
-    except Exception as e:
-        print(f"send_message error: {e}", flush=True)
+        except Exception as e:
+            log_event(f"send_message error: {e}")
 
-    # 3. Карточка Telegram Game (работает и в группах, и в ЛС)
+    # И в группах, и в ЛС отправляем официальную карточку игры Telegram Game
+    # В группе игра запускается прямо поверх группы по кнопке 'Play Void Hunter'!
     try:
         bot.send_game(message.chat.id, GAME_SHORT_NAME)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Карточка игры успешно отправлена в {message.chat.id}", flush=True)
+        log_event(f"Карточка игры успешно отправлена в {message.chat.id}")
     except Exception as e:
-        print(f"send_game error: {e}", flush=True)
+        log_event(f"send_game error: {e}")
 
 @bot.callback_query_handler(func=lambda c: True)
 def launch_game(call):
+    log_event(f"Callback received: id={call.id}, game={getattr(call, 'game_short_name', None)}, data={call.data}")
     try:
         if call.data == "show_top":
             show_top_callback(call)
@@ -74,13 +71,13 @@ def launch_game(call):
         name = urllib.parse.quote(call.from_user.first_name or 'Игрок')
         url = f"{GAME_URL}?uid={user_id}&cid={chat_id}&token={BOT_TOKEN}&name={name}"
         bot.answer_callback_query(call.id, url=url)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🎮 Запуск игры для {call.from_user.first_name} (id: {user_id})", flush=True)
+        log_event(f"🎮 Запуск игры для {call.from_user.first_name} (id: {user_id}) в чате {chat_id}")
     except Exception as e:
-        print(f"❌ Ошибка launch_game callback: {e}", flush=True)
+        log_event(f"❌ Ошибка launch_game callback: {e}")
         try:
             bot.answer_callback_query(call.id, url=GAME_URL)
-        except:
-            pass
+        except Exception as e2:
+            log_event(f"❌ Ошибка повторного answer_callback_query: {e2}")
 
 def show_top_callback(call):
     if not leaderboard:
@@ -153,5 +150,5 @@ if __name__ == '__main__':
     import sys
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
-    print("✅ Бот запущен...", flush=True)
+    log_event("✅ Бот запущен и ожидает событий...")
     bot.polling(none_stop=True)
