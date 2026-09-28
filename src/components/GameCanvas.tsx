@@ -79,16 +79,17 @@ export default function GameCanvas({
   const pickupSheet = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    const basePrefix = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
     const sImg = new Image();
-    sImg.src = '/icons/ships_grid.png';
+    sImg.src = `${basePrefix}icons/ships_grid.png`;
     shipSheet.current = sImg;
 
     const bImg = new Image();
-    bImg.src = '/icons/bosses_grid.png';
+    bImg.src = `${basePrefix}icons/bosses_grid.png`;
     bossSheet.current = bImg;
 
     const pImg = new Image();
-    pImg.src = '/icons/pickups_grid.png';
+    pImg.src = `${basePrefix}icons/pickups_grid.png`;
     pickupSheet.current = pImg;
   }, []);
   

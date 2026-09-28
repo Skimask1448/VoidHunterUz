@@ -13,14 +13,16 @@ export interface IconCoordinate {
   row: number; // 0, 1, 2
 }
 
+const BASE_PREFIX = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+
 export const SHEET_URLS: Record<SheetType, string> = {
-  weapons: '/icons/weapons_grid.png',
-  passives: '/icons/passives_grid.png',
-  synergies: '/icons/synergies_grid.png',
-  rockets: '/icons/rockets_grid.png',
-  ships: '/icons/ships_grid.png',
-  bosses: '/icons/bosses_grid.png',
-  pickups: '/icons/pickups_grid.png',
+  weapons: `${BASE_PREFIX}icons/weapons_grid.png`,
+  passives: `${BASE_PREFIX}icons/passives_grid.png`,
+  synergies: `${BASE_PREFIX}icons/synergies_grid.png`,
+  rockets: `${BASE_PREFIX}icons/rockets_grid.png`,
+  ships: `${BASE_PREFIX}icons/ships_grid.png`,
+  bosses: `${BASE_PREFIX}icons/bosses_grid.png`,
+  pickups: `${BASE_PREFIX}icons/pickups_grid.png`,
 };
 
 /**
