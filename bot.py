@@ -1,6 +1,8 @@
 import telebot
+from telebot import types
 import urllib.parse
 import json
+from datetime import datetime
 
 BOT_TOKEN = "8075609515:AAGVa9amad2T1X88tey_zLpsxTRsuhO4NRw"
 GAME_SHORT_NAME = "voidhunter"
@@ -12,20 +14,59 @@ leaderboard = {}
 
 @bot.message_handler(commands=['start', 'game'], chat_types=['private', 'group', 'supergroup'])
 def send_game(message):
-    bot.send_game(message.chat.id, GAME_SHORT_NAME)
+    try:
+        # Устанавливаем кнопку меню в чате
+        bot.set_chat_menu_button(
+            message.chat.id,
+            types.MenuButtonWebApp(type="web_app", text="🎮 Играть", web_app=types.WebAppInfo(url=GAME_URL))
+        )
+    except Exception as e:
+        print(f"Menu button set warning: {e}")
+
+    # Создаём клавиатуру с прямым запуском WebApp и ссылкой
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    btn_webapp = types.InlineKeyboardButton("🚀 Играть прямо в Telegram", web_app=types.WebAppInfo(url=GAME_URL))
+    btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
+    btn_top = types.InlineKeyboardButton("🏆 Таблица рекордов", callback_data="show_top")
+    markup.add(btn_webapp, btn_browser, btn_top)
+
+    bot.send_message(
+        message.chat.id,
+        "🌌 **VOID HUNTER** — Космический roguelite-шутер!\n\n"
+        "Нажмите кнопку ниже, чтобы начать экспедицию по секторам Галактики:",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
+
+    try:
+        # Также отправляем карточку игры платформы Telegram Game
+        bot.send_game(message.chat.id, GAME_SHORT_NAME)
+    except Exception as e:
+        print(f"send_game warning: {e}")
 
 @bot.callback_query_handler(func=lambda c: True)
 def launch_game(call):
-    user_id = call.from_user.id
-    chat_id = call.message.chat.id if call.message else user_id
-    name = urllib.parse.quote(call.from_user.first_name or 'Игрок')
-    url = f"{GAME_URL}?uid={user_id}&cid={chat_id}&token={BOT_TOKEN}&name={name}"
-    bot.answer_callback_query(call.id, url=url)
+    try:
+        if call.data == "show_top":
+            show_top_callback(call)
+            return
 
-@bot.message_handler(commands=['top'], chat_types=['private', 'group', 'supergroup'])
-def show_top(message):
+        user_id = call.from_user.id
+        chat_id = call.message.chat.id if call.message else user_id
+        name = urllib.parse.quote(call.from_user.first_name or 'Игрок')
+        url = f"{GAME_URL}?uid={user_id}&cid={chat_id}&token={BOT_TOKEN}&name={name}"
+        bot.answer_callback_query(call.id, url=url)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🎮 Запуск игры для {call.from_user.first_name} (id: {user_id})", flush=True)
+    except Exception as e:
+        print(f"❌ Ошибка launch_game callback: {e}", flush=True)
+        try:
+            bot.answer_callback_query(call.id, url=GAME_URL)
+        except:
+            pass
+
+def show_top_callback(call):
     if not leaderboard:
-        bot.send_message(message.chat.id, "📊 Пока никто не играл!")
+        bot.answer_callback_query(call.id, "📊 Пока никто не играл!", show_alert=True)
         return
     sorted_lb = sorted(leaderboard.values(), key=lambda x: (x['wave'], x['score']), reverse=True)
     text = "🏆 Таблица рекордов:\n\n"
@@ -33,7 +74,8 @@ def show_top(message):
     for i, entry in enumerate(sorted_lb[:10]):
         medal = medals[i] if i < 3 else f"{i+1}."
         text += f"{medal} {entry['name']} — {entry['score']} очков (волна {entry['wave']})\n"
-    bot.send_message(message.chat.id, text)
+    bot.send_message(call.message.chat.id, text)
+    bot.answer_callback_query(call.id)
 
 @bot.message_handler(func=lambda message: message.text and message.text.startswith('__'))
 def handle_game_messages(message):
