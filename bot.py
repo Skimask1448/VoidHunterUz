@@ -69,9 +69,9 @@ def launch_game(call):
         user_id = call.from_user.id
         chat_id = call.message.chat.id if call.message else user_id
         name = urllib.parse.quote(call.from_user.first_name or 'Игрок')
-        url = f"{GAME_URL}?uid={user_id}&cid={chat_id}&token={BOT_TOKEN}&name={name}"
-        bot.answer_callback_query(call.id, url=url)
-        log_event(f"🎮 Запуск игры для {call.from_user.first_name} (id: {user_id}) в чате {chat_id}")
+        url = f"{GAME_URL}?uid={user_id}&cid={chat_id}&name={name}"
+        res = bot.answer_callback_query(call.id, url=url)
+        log_event(f"🎮 answer_callback_query result={res}, user={call.from_user.first_name} (id: {user_id}), url={url}")
     except Exception as e:
         log_event(f"❌ Ошибка launch_game callback: {e}")
         try:
@@ -146,9 +146,17 @@ def handle_game_messages(message):
         except Exception as e:
             print(f"❌ Ошибка отправки таблицы: {e}")
 
+def on_updates(updates):
+    for u in updates:
+        if getattr(u, 'callback_query', None):
+            cb = u.callback_query
+            log_event(f"⚡ [UPDATE] CallbackQuery id={cb.id}, game={getattr(cb, 'game_short_name', None)}, data={cb.data}, from={cb.from_user.id}")
+
+bot.set_update_listener(on_updates)
+
 if __name__ == '__main__':
     import sys
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
-    log_event("✅ Бот запущен и ожидает событий...")
-    bot.polling(none_stop=True)
+    log_event("✅ Бот запущен с расширенным слушателем событий...")
+    bot.infinity_polling(allowed_updates=['message', 'callback_query', 'inline_query', 'chosen_inline_result'])
