@@ -14,35 +14,53 @@ leaderboard = {}
 
 @bot.message_handler(commands=['start', 'game'], chat_types=['private', 'group', 'supergroup'])
 def send_game(message):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Получена команда {message.text} в чате {message.chat.id} (тип: {message.chat.type})", flush=True)
+    
+    # 1. Меню-кнопка (доступна только в ЛС)
+    if message.chat.type == 'private':
+        try:
+            bot.set_chat_menu_button(
+                message.chat.id,
+                types.MenuButtonWebApp(type="web_app", text="🎮 Играть", web_app=types.WebAppInfo(url=GAME_URL))
+            )
+        except Exception as e:
+            print(f"Menu button warning: {e}", flush=True)
+
+    # 2. Сообщение с кнопками запуска
     try:
-        # Устанавливаем кнопку меню в чате
-        bot.set_chat_menu_button(
-            message.chat.id,
-            types.MenuButtonWebApp(type="web_app", text="🎮 Играть", web_app=types.WebAppInfo(url=GAME_URL))
-        )
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if message.chat.type == 'private':
+            btn_webapp = types.InlineKeyboardButton("🚀 Играть прямо в Telegram", web_app=types.WebAppInfo(url=GAME_URL))
+            btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
+            btn_top = types.InlineKeyboardButton("🏆 Таблица рекордов", callback_data="show_top")
+            markup.add(btn_webapp, btn_browser, btn_top)
+            bot.send_message(
+                message.chat.id,
+                "🌌 **VOID HUNTER** — Космический roguelite-шутер!\n\n"
+                "Нажмите кнопку ниже, чтобы начать экспедицию по секторам Галактики:",
+                reply_markup=markup,
+                parse_mode="Markdown"
+            )
+        else:
+            # Для групповых чатов (Telegram запрещает web_app кнопку в группах, используем прямую ссылку и переход)
+            btn_play = types.InlineKeyboardButton("🚀 Играть в Telegram", url="https://t.me/voidhunteruzbot?start=play")
+            btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
+            markup.add(btn_play, btn_browser)
+            bot.send_message(
+                message.chat.id,
+                "🌌 **VOID HUNTER** готов к бою в группе!\n"
+                "Нажмите кнопку ниже или играйте через карточку игры:",
+                reply_markup=markup
+            )
     except Exception as e:
-        print(f"Menu button set warning: {e}")
+        print(f"send_message error: {e}", flush=True)
 
-    # Создаём клавиатуру с прямым запуском WebApp и ссылкой
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_webapp = types.InlineKeyboardButton("🚀 Играть прямо в Telegram", web_app=types.WebAppInfo(url=GAME_URL))
-    btn_browser = types.InlineKeyboardButton("🌐 Открыть в браузере", url=GAME_URL)
-    btn_top = types.InlineKeyboardButton("🏆 Таблица рекордов", callback_data="show_top")
-    markup.add(btn_webapp, btn_browser, btn_top)
-
-    bot.send_message(
-        message.chat.id,
-        "🌌 **VOID HUNTER** — Космический roguelite-шутер!\n\n"
-        "Нажмите кнопку ниже, чтобы начать экспедицию по секторам Галактики:",
-        reply_markup=markup,
-        parse_mode="Markdown"
-    )
-
+    # 3. Карточка Telegram Game (работает и в группах, и в ЛС)
     try:
-        # Также отправляем карточку игры платформы Telegram Game
         bot.send_game(message.chat.id, GAME_SHORT_NAME)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Карточка игры успешно отправлена в {message.chat.id}", flush=True)
     except Exception as e:
-        print(f"send_game warning: {e}")
+        print(f"send_game error: {e}", flush=True)
 
 @bot.callback_query_handler(func=lambda c: True)
 def launch_game(call):
